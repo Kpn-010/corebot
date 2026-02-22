@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import signal
-import sys
 from typing import List
 
 import discord
@@ -190,6 +189,8 @@ async def main() -> None:
 
     port = int(os.environ.get("PORT", 8080))
     intents = discord.Intents.all()
+
+    await asyncio.sleep(5)  # prevent rapid reconnect rate limiting on restart
 
     async with ClientSession() as session:
         async with CoreBot(

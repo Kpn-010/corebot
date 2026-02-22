@@ -187,6 +187,7 @@ class Owner(commands.Cog, name="Owner"):
     async def restart(self, ctx: commands.Context):
         await ctx.send("↻ Restarting...")
         log.info(f"Restart triggered by {ctx.author} (ID: {ctx.author.id})")
+        await asyncio.sleep(3)
         os.execv(sys.executable, [sys.executable, "bot.py"])
 
     @commands.command(name="shutdown")
