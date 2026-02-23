@@ -218,6 +218,22 @@ MODULES = [
         "group": "Role Group",
         "commands": [
             {
+                "title": "Role Add",
+                "description": "Give a role to a member.",
+                "syntax": "cc role add <@member|ID> <@role|ID|name>",
+                "example": "cc role add @User @Moderator",
+                "permissions": "Manage Roles",
+                "aliases": "None",
+            },
+            {
+                "title": "Role Remove",
+                "description": "Remove a role from a member.",
+                "syntax": "cc role remove <@member|ID> <@role|ID|name>",
+                "example": "cc role remove @User @Moderator",
+                "permissions": "Manage Roles",
+                "aliases": "None",
+            },
+            {
                 "title": "Role Create",
                 "description": "Create a role with optional color and icon.",
                 "syntax": "cc role create <name> [#hex] [emoji/url]",

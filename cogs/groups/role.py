@@ -52,6 +52,52 @@ async def _get_emoji_image(ctx: commands.Context, token: str) -> bytes | None:
     return None
 
 
+class RoleInView(discord.ui.View):
+    def __init__(self, invoker, pages, make_embed):
+        super().__init__(timeout=120)
+        self.invoker = invoker
+        self.pages = pages
+        self.make_embed = make_embed
+        self.page = 0
+        self._sync()
+
+    def _sync(self):
+        self.prev_btn.disabled = self.page == 0
+        self.next_btn.disabled = self.page == len(self.pages) - 1
+
+    async def _edit(self, interaction: discord.Interaction):
+        self._sync()
+        await interaction.response.edit_message(embed=self.make_embed(self.page), view=self)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.invoker.id:
+            await interaction.response.send_message("✕ This menu belongs to someone else.", ephemeral=True)
+            return False
+        return True
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        try:
+            await self.message.edit(view=self)
+        except Exception:
+            pass
+
+    @discord.ui.button(label="←", style=discord.ButtonStyle.secondary)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        await self._edit(interaction)
+
+    @discord.ui.button(label="✕", style=discord.ButtonStyle.danger)
+    async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+    @discord.ui.button(label="→", style=discord.ButtonStyle.secondary)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        await self._edit(interaction)
+
+
 class Role(commands.Cog, name="Role"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -64,11 +110,95 @@ class Role(commands.Cog, name="Role"):
         """Role management group."""
         await ctx.send(
             "**Role Commands:**\n"
+            "`cc role add <@member> <@role>` — Give a role to a member\n"
+            "`cc role remove <@member> <@role>` — Remove a role from a member\n"
+            "`cc role in [role]` — List members in a role\n"
             "`cc role create <n> [#hex] [emoji/url]` — Create a role\n"
             "`cc role edit <role> [new_name] [#hex] [emoji/url]` — Edit a role\n"
             "`cc role delete <role>` — Delete a role\n"
             "`cc role steal <emoji> [name]` — Add an emoji from another server\n"
         )
+
+    # ── cc role add ────────────────────────────────────────────────────────
+    @role.command(name="add")
+    @commands.has_permissions(manage_roles=True)
+    @commands.bot_has_permissions(manage_roles=True)
+    async def role_add(self, ctx: commands.Context, member: discord.Member, *, target: str):
+        """
+        Give a role to a member.
+        Usage: cc role add <@member|ID> <@role|ID|name>
+        """
+        role = await RoleConverter().convert(ctx, target)
+        if role >= ctx.guild.me.top_role:
+            return await ctx.send("✕ That role is higher than or equal to my top role.")
+        if role in member.roles:
+            return await ctx.send(f"✕ {member.mention} already has {role.mention}.")
+        await member.add_roles(role, reason=f"Role added by {ctx.author}")
+        await ctx.send(f"✓ Gave {role.mention} to {member.mention}.")
+
+    # ── cc role remove ─────────────────────────────────────────────────────
+    @role.command(name="remove")
+    @commands.has_permissions(manage_roles=True)
+    @commands.bot_has_permissions(manage_roles=True)
+    async def role_remove(self, ctx: commands.Context, member: discord.Member, *, target: str):
+        """
+        Remove a role from a member.
+        Usage: cc role remove <@member|ID> <@role|ID|name>
+        """
+        role = await RoleConverter().convert(ctx, target)
+        if role >= ctx.guild.me.top_role:
+            return await ctx.send("✕ That role is higher than or equal to my top role.")
+        if role not in member.roles:
+            return await ctx.send(f"✕ {member.mention} does not have {role.mention}.")
+        await member.remove_roles(role, reason=f"Role removed by {ctx.author}")
+        await ctx.send(f"✓ Removed {role.mention} from {member.mention}.")
+
+    # ── cc role in ─────────────────────────────────────────────────────────
+    @role.command(name="in")
+    @commands.guild_only()
+    async def role_in(self, ctx: commands.Context, *, target: str = "everyone"):
+        """
+        List members in a role.
+        Usage: cc role in [role]
+        Uses everyone if no role given. Paginates if over 50 members.
+        """
+        if target.lower() in ("everyone", "all", "@everyone"):
+            members = ctx.guild.members
+            role_name = "@everyone"
+        else:
+            role = await RoleConverter().convert(ctx, target)
+            members = role.members
+            role_name = role.name
+
+        if not members:
+            return await ctx.send(f"✕ No members found in **{role_name}**.")
+
+        # Sort by display name
+        members = sorted(members, key=lambda m: m.display_name.lower())
+        total = len(members)
+
+        # Split into pages of 20
+        page_size = 20
+        pages = [members[i:i + page_size] for i in range(0, total, page_size)]
+
+        def make_embed(page_idx: int) -> discord.Embed:
+            chunk = pages[page_idx]
+            lines = [f"`{i + 1 + page_idx * page_size}.` {m.mention} — {m.display_name}" for i, m in enumerate(chunk)]
+            embed = discord.Embed(
+                title=f"Members in {role_name}",
+                description="\n".join(lines),
+                color=discord.Color.blurple(),
+            )
+            embed.set_footer(text=f"{total} member(s) total  ⌁  Page {page_idx + 1} of {len(pages)}")
+            return embed
+
+        if len(pages) == 1:
+            return await ctx.send(embed=make_embed(0))
+
+        # Paginated view
+        view = RoleInView(ctx.author, pages, make_embed)
+        msg = await ctx.send(embed=make_embed(0), view=view)
+        view.message = msg
 
     # ── cc role create ─────────────────────────────────────────────────────
     @role.command(name="create")

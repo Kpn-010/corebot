@@ -7,15 +7,20 @@ import httpx
 
 log = logging.getLogger("corebot")
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-_HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation",
-}
+def _sb_headers(prefer: str = "return=representation") -> dict:
+    key = os.environ.get("SUPABASE_KEY", "")
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": prefer,
+    }
+
+
+def _sb_url(path: str = "") -> str:
+    base = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    return f"{base}/rest/v1/{path}"
 
 
 def _default_guild() -> dict:
@@ -56,39 +61,29 @@ class GuildDB:
 
     def __init__(self) -> None:
         self._locks: dict[int, asyncio.Lock] = {}
-        self._client: httpx.AsyncClient | None = None
 
     def _lock(self, guild_id: int) -> asyncio.Lock:
         if guild_id not in self._locks:
             self._locks[guild_id] = asyncio.Lock()
         return self._locks[guild_id]
 
-    @property
-    def _http(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=f"{SUPABASE_URL}/rest/v1",
-                headers=_HEADERS,
-                timeout=10.0,
-            )
-        return self._client
-
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        pass  # No persistent client to close
 
     # ── Core I/O ───────────────────────────────────────────────────────────
 
     async def load(self, guild_id: int) -> dict:
         async with self._lock(guild_id):
             try:
-                r = await self._http.get(
-                    "/guild_data",
-                    params={"guild_id": f"eq.{guild_id}", "select": "data"},
-                )
-                r.raise_for_status()
-                rows = r.json()
-                stored = rows[0]["data"] if rows else {}
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    r = await client.get(
+                        _sb_url("guild_data"),
+                        params={"guild_id": f"eq.{guild_id}", "select": "data"},
+                        headers=_sb_headers(),
+                    )
+                    r.raise_for_status()
+                    rows = r.json()
+                    stored = rows[0]["data"] if rows else {}
             except Exception as e:
                 log.error(f"Supabase load failed for guild {guild_id}: {e}")
                 stored = {}
@@ -103,19 +98,17 @@ class GuildDB:
     async def save(self, guild_id: int, data: dict) -> None:
         async with self._lock(guild_id):
             try:
-                r = await self._http.post(
-                    "/guild_data",
-                    json={
-                        "guild_id": guild_id,
-                        "data": data,
-                        "updated_at": "now()",
-                    },
-                    headers={
-                        **_HEADERS,
-                        "Prefer": "resolution=merge-duplicates,return=minimal",
-                    },
-                )
-                r.raise_for_status()
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    r = await client.post(
+                        _sb_url("guild_data"),
+                        json={
+                            "guild_id": guild_id,
+                            "data": data,
+                            "updated_at": "now()",
+                        },
+                        headers=_sb_headers("resolution=merge-duplicates,return=minimal"),
+                    )
+                    r.raise_for_status()
             except Exception as e:
                 log.error(f"Supabase save failed for guild {guild_id}: {e}")
 
@@ -141,10 +134,12 @@ class GuildDB:
     async def delete_guild(self, guild_id: int) -> None:
         async with self._lock(guild_id):
             try:
-                r = await self._http.delete(
-                    "/guild_data",
-                    params={"guild_id": f"eq.{guild_id}"},
-                )
-                r.raise_for_status()
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    r = await client.delete(
+                        _sb_url("guild_data"),
+                        params={"guild_id": f"eq.{guild_id}"},
+                        headers=_sb_headers(),
+                    )
+                    r.raise_for_status()
             except Exception as e:
                 log.error(f"Supabase delete failed for guild {guild_id}: {e}")

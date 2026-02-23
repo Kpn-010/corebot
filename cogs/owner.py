@@ -10,15 +10,24 @@ from discord.ext import commands
 
 log = logging.getLogger("corebot")
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+def _sb_headers(extra: dict = None) -> dict:
+    """Build Supabase headers fresh each call so env vars are always current."""
+    key = os.environ.get("SUPABASE_KEY", "")
+    h = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    if extra:
+        h.update(extra)
+    return h
 
-_SB_HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-    "Prefer": "return=representation",
-}
+
+def _sb_url(path: str) -> str:
+    base = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    return f"{base}/rest/v1/{path}"
+
 
 STATUS_TYPES = {
     "watching":  discord.ActivityType.watching,
@@ -46,9 +55,9 @@ async def _fetch_owner_ids() -> set[int]:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.get(
-                f"{SUPABASE_URL}/rest/v1/owner_ids",
+                _sb_url("owner_ids"),
                 params={"select": "user_id"},
-                headers=_SB_HEADERS,
+                headers=_sb_headers(),
             )
             r.raise_for_status()
             return {row["user_id"] for row in r.json()}
@@ -60,9 +69,9 @@ async def _fetch_owner_ids() -> set[int]:
 async def _add_owner_db(user_id: int, added_by: int) -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(
-            f"{SUPABASE_URL}/rest/v1/owner_ids",
+            _sb_url("owner_ids"),
             json={"user_id": user_id, "added_by": added_by},
-            headers={**_SB_HEADERS, "Prefer": "resolution=ignore-duplicates,return=minimal"},
+            headers=_sb_headers({"Prefer": "resolution=ignore-duplicates,return=minimal"}),
         )
         r.raise_for_status()
 
@@ -70,9 +79,9 @@ async def _add_owner_db(user_id: int, added_by: int) -> None:
 async def _remove_owner_db(user_id: int) -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.delete(
-            f"{SUPABASE_URL}/rest/v1/owner_ids",
+            _sb_url("owner_ids"),
             params={"user_id": f"eq.{user_id}"},
-            headers=_SB_HEADERS,
+            headers=_sb_headers(),
         )
         r.raise_for_status()
 
@@ -391,6 +400,8 @@ class Owner(commands.Cog, name="Owner"):
     @commands.command(name="addowner")
     @is_owner()
     async def addowner(self, ctx: commands.Context, user: discord.User):
+        # Re-sync from DB first so we have the latest state across both bots
+        OWNER_IDS.update(await _fetch_owner_ids())
         if user.id in OWNER_IDS:
             return await ctx.send(f"✕ {user.mention} is already an owner.")
         try:
@@ -404,6 +415,7 @@ class Owner(commands.Cog, name="Owner"):
     @commands.command(name="removeowner")
     @is_owner()
     async def removeowner(self, ctx: commands.Context, user: discord.User):
+        OWNER_IDS.update(await _fetch_owner_ids())
         if user.id not in OWNER_IDS:
             return await ctx.send(f"✕ {user.mention} is not an owner.")
         if len(OWNER_IDS) == 1:
@@ -419,8 +431,12 @@ class Owner(commands.Cog, name="Owner"):
     @commands.command(name="owners")
     @is_owner()
     async def owners(self, ctx: commands.Context):
+        # Always fetch fresh from DB so both bots see the same list
+        db_ids = await _fetch_owner_ids()
+        OWNER_IDS.update(db_ids)
+        all_ids = OWNER_IDS | db_ids
         lines = []
-        for uid in sorted(OWNER_IDS):
+        for uid in sorted(all_ids):
             user = self.bot.get_user(uid)
             label = str(user) if user else f"Unknown ({uid})"
             lines.append(f"✓ `{uid}` — {label}")
