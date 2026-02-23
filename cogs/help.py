@@ -352,6 +352,35 @@ MODULES = [
             },
         ],
     },
+    {
+        "group": "Logs Group",
+        "commands": [
+            {
+                "title": "Log Status",
+                "description": "View all configured log channels for this server.",
+                "syntax": "cc log",
+                "example": "cc log",
+                "permissions": "Manage Guild",
+                "aliases": "None",
+            },
+            {
+                "title": "Log Set",
+                "description": "Set a log channel for a category.\nCategories: `mod` `message` `member` `server` `voice`",
+                "syntax": "cc log set <category> <#channel>",
+                "example": "cc log set mod #mod-logs",
+                "permissions": "Manage Guild",
+                "aliases": "None",
+            },
+            {
+                "title": "Log Clear",
+                "description": "Disable logging for a category.",
+                "syntax": "cc log clear <category>",
+                "example": "cc log clear voice",
+                "permissions": "Manage Guild",
+                "aliases": "None",
+            },
+        ],
+    },
 ]
 
 # Flatten into a list of pages: (group_name, cmd_index_in_group, total_in_group, cmd_data)

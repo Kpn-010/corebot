@@ -66,6 +66,9 @@ class Mod(commands.Cog, name="Mod"):
         await member.kick(reason=f"{ctx.author} | {reason}")
         await ctx.send(embed=mod_embed("Member Kicked", discord.Color.orange(),
             member=str(member), reason=reason, moderator=ctx.author.mention))
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Kick", Member=str(member), Reason=reason, Moderator=ctx.author.mention)
 
     # ── cc ban ─────────────────────────────────────────────────────────────
     @commands.command(name="ban")
@@ -87,6 +90,9 @@ class Mod(commands.Cog, name="Mod"):
         await member.ban(reason=f"{ctx.author} | {reason}", delete_message_days=0)
         await ctx.send(embed=mod_embed("Member Banned", discord.Color.red(),
             member=str(member), reason=reason, moderator=ctx.author.mention))
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Ban", Member=str(member), Reason=reason, Moderator=ctx.author.mention)
 
     # ── cc unban ───────────────────────────────────────────────────────────
     @commands.command(name="unban")
@@ -99,6 +105,9 @@ class Mod(commands.Cog, name="Mod"):
             user = await self.bot.fetch_user(user_id)
             await ctx.guild.unban(user, reason=f"{ctx.author} | {reason}")
             await ctx.send(f"✓ Unbanned **{user}**.")
+            logs = self.bot.cogs.get("Logs")
+            if logs:
+                await logs.log_mod(ctx.guild, "Unban", User=str(user), Reason=reason, Moderator=ctx.author.mention)
         except discord.NotFound:
             await ctx.send("✕ No banned user found with that ID.")
 
@@ -124,6 +133,9 @@ class Mod(commands.Cog, name="Mod"):
         await member.timeout(delta, reason=f"{ctx.author} | {reason}")
         await ctx.send(embed=mod_embed("Member Timed Out", discord.Color.yellow(),
             member=str(member), duration=duration, reason=reason, moderator=ctx.author.mention))
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Timeout", Member=str(member), Duration=duration, Reason=reason, Moderator=ctx.author.mention)
 
     # ── cc untimeout ───────────────────────────────────────────────────────
     @commands.command(name="untimeout", aliases=["uto"])
@@ -135,6 +147,9 @@ class Mod(commands.Cog, name="Mod"):
         member = await MemberConverter().convert(ctx, target)
         await member.timeout(None)
         await ctx.send(f"✓ Timeout removed for **{member}**.")
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Untimeout", Member=str(member), Moderator=ctx.author.mention)
 
     # ── cc purge ───────────────────────────────────────────────────────────
     @commands.command(name="purge")
@@ -152,7 +167,7 @@ class Mod(commands.Cog, name="Mod"):
         if target:
             member = await MemberConverter().convert(ctx, target)
 
-        check = (lambda m: m.author == member) if member else None
+        check = (lambda m: m.author == member) if member else (lambda m: True)
         deleted = await ctx.channel.purge(limit=amount, check=check)
         msg = await ctx.send(f"↻ Deleted **{len(deleted)}** message(s).")
         await msg.delete(delay=5)
@@ -252,6 +267,9 @@ class Mod(commands.Cog, name="Mod"):
 
         await ctx.send(embed=mod_embed("! Member Warned", discord.Color.gold(),
             member=str(member), reason=reason, total_warnings=str(count), moderator=ctx.author.mention))
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Warn", Member=str(member), Reason=reason, Warnings=str(count), Moderator=ctx.author.mention)
 
     # ── cc warnings ────────────────────────────────────────────────────────
     @commands.command(name="warnings")
@@ -331,6 +349,9 @@ class Mod(commands.Cog, name="Mod"):
             pass
         await ctx.send(embed=mod_embed("Member Muted", discord.Color.dark_gray(),
             member=str(member), reason=reason, moderator=ctx.author.mention))
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Mute", Member=str(member), Reason=reason, Moderator=ctx.author.mention)
 
     @commands.command(name="unmute")
     @commands.has_permissions(manage_roles=True)
@@ -347,6 +368,9 @@ class Mod(commands.Cog, name="Mod"):
             return await ctx.send(f"✕ **{member}** is not muted.")
         await member.remove_roles(muted_role, reason=f"Unmuted by {ctx.author}")
         await ctx.send(f"**{member}** has been unmuted.")
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Unmute", Member=str(member), Moderator=ctx.author.mention)
 
     # ── cc imute (image/attachment mute) ──────────────────────────────────
     @commands.command(name="imute")
@@ -368,6 +392,9 @@ class Mod(commands.Cog, name="Mod"):
         guild_data["image_muted"][uid] = True
         await ctx.bot.db.save(ctx.guild.id, guild_data)
         await ctx.send(f"**{member}** is now image-muted. Their attachments will be deleted.")
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Image Mute", Member=str(member), Reason=reason, Moderator=ctx.author.mention)
 
     @commands.command(name="iunmute")
     @commands.has_permissions(manage_messages=True)
@@ -382,6 +409,9 @@ class Mod(commands.Cog, name="Mod"):
         guild_data["image_muted"].pop(uid, None)
         await ctx.bot.db.save(ctx.guild.id, guild_data)
         await ctx.send(f"**{member}**'s image mute removed.")
+        logs = self.bot.cogs.get("Logs")
+        if logs:
+            await logs.log_mod(ctx.guild, "Image Unmute", Member=str(member), Moderator=ctx.author.mention)
 
     # ── cc muterole ────────────────────────────────────────────────────────
     @commands.command(name="muterole")

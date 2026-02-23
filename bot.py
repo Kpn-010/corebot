@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import signal
+import sys
 from typing import List
 
 import discord
@@ -29,6 +30,7 @@ EXTENSIONS: List[str] = [
     "cogs.groups.welcome",
     "cogs.groups.channel",
     "cogs.groups.role",
+    "cogs.logs",
 ]
 
 
@@ -190,27 +192,45 @@ async def main() -> None:
     port = int(os.environ.get("PORT", 8080))
     intents = discord.Intents.all()
 
-    await asyncio.sleep(5)  # prevent rapid reconnect rate limiting on restart
+    # Backoff on 429s so Render's crash/restart loop doesn't keep hammering Discord.
+    backoff = [0, 15, 30, 60, 120]
 
-    async with ClientSession() as session:
-        async with CoreBot(
-            command_prefix="cc ",
-            intents=intents,
-            case_insensitive=True,
-            help_command=None,
-            initial_extensions=EXTENSIONS,
-            web_client=session,
-        ) as bot:
-            loop = asyncio.get_running_loop()
+    for attempt, delay in enumerate(backoff):
+        if delay:
+            log.warning(f"Rate limited — attempt {attempt + 1}/{len(backoff)}, waiting {delay}s.")
+            await asyncio.sleep(delay)
 
-            def _handle_signal():
-                log.info("Signal received — shutting down cleanly.")
-                asyncio.ensure_future(bot.close())
+        try:
+            async with ClientSession() as session:
+                async with CoreBot(
+                    command_prefix="cc ",
+                    intents=intents,
+                    case_insensitive=True,
+                    help_command=None,
+                    initial_extensions=EXTENSIONS,
+                    web_client=session,
+                ) as bot:
+                    loop = asyncio.get_running_loop()
 
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                loop.add_signal_handler(sig, _handle_signal)
+                    def _handle_signal():
+                        log.info("Signal received — shutting down cleanly.")
+                        asyncio.ensure_future(bot.close())
 
-            await asyncio.gather(_keepalive(port), bot.start(token))
+                    for sig in (signal.SIGINT, signal.SIGTERM):
+                        loop.add_signal_handler(sig, _handle_signal)
+
+                    await asyncio.gather(_keepalive(port), bot.start(token))
+            return
+
+        except discord.HTTPException as e:
+            if e.status == 429:
+                if attempt + 1 < len(backoff):
+                    log.error(f"429 rate limited (attempt {attempt + 1}). Retrying in {backoff[attempt + 1]}s.")
+                else:
+                    log.error("429 rate limited — all retries exhausted.")
+                    raise
+            else:
+                raise
 
 
 if __name__ == "__main__":

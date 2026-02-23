@@ -41,6 +41,13 @@ def _default_guild() -> dict:
         },
         "muted_role": None,   # role_id  (int | None)
         "image_muted": {},    # { "user_id": True }
+        "logs": {
+            "mod":     None,  # moderation events
+            "message": None,  # message edits/deletes
+            "member":  None,  # join/leave
+            "server":  None,  # role/channel changes
+            "voice":   None,  # voice activity
+        },
     }
 
 

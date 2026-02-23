@@ -76,7 +76,7 @@ class Channel(commands.Cog, name="Channel"):
         roles = await _resolve_roles(ctx, role_tokens) if role_tokens else []
         overwrites = _overwrites_for_roles(ctx.guild, roles) if roles else {}
 
-        channel = await ctx.guild.create_text_channel(name, overwrites=overwrites if overwrites else None)
+        channel = await ctx.guild.create_text_channel(name, overwrites=overwrites)
 
         access_str = ", ".join(r.mention for r in roles) if roles else "everyone"
         await ctx.send(f"✓ Created {channel.mention} with access: {access_str}")
