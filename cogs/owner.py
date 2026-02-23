@@ -1,15 +1,24 @@
 import asyncio
-import json
 import logging
 import os
 import sys
+
+import httpx
 
 import discord
 from discord.ext import commands
 
 log = logging.getLogger("corebot")
 
-OWNERS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "owners.json")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
+_SB_HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+}
 
 STATUS_TYPES = {
     "watching":  discord.ActivityType.watching,
@@ -19,31 +28,53 @@ STATUS_TYPES = {
 }
 
 
-def _load_owner_ids() -> set[int]:
+def _load_env_owner_ids() -> set[int]:
     ids: set[int] = set()
     raw = os.environ.get("OWNER_IDS", "")
     for part in raw.split(","):
         part = part.strip()
         if part.isdigit():
             ids.add(int(part))
-    try:
-        with open(OWNERS_FILE, "r", encoding="utf-8") as f:
-            stored = json.load(f)
-        for uid in stored:
-            if isinstance(uid, int):
-                ids.add(uid)
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
     return ids
 
 
-def _save_owner_ids(ids: set[int]) -> None:
-    os.makedirs(os.path.dirname(OWNERS_FILE), exist_ok=True)
-    with open(OWNERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(sorted(ids), f)
+# Env-based owners loaded at startup — Supabase owners loaded async in setup()
+OWNER_IDS: set[int] = _load_env_owner_ids()
 
 
-OWNER_IDS: set[int] = _load_owner_ids()
+async def _fetch_owner_ids() -> set[int]:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                f"{SUPABASE_URL}/rest/v1/owner_ids",
+                params={"select": "user_id"},
+                headers=_SB_HEADERS,
+            )
+            r.raise_for_status()
+            return {row["user_id"] for row in r.json()}
+    except Exception as e:
+        log.error(f"Failed to fetch owner IDs from Supabase: {e}")
+        return set()
+
+
+async def _add_owner_db(user_id: int, added_by: int) -> None:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(
+            f"{SUPABASE_URL}/rest/v1/owner_ids",
+            json={"user_id": user_id, "added_by": added_by},
+            headers={**_SB_HEADERS, "Prefer": "resolution=ignore-duplicates,return=minimal"},
+        )
+        r.raise_for_status()
+
+
+async def _remove_owner_db(user_id: int) -> None:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.delete(
+            f"{SUPABASE_URL}/rest/v1/owner_ids",
+            params={"user_id": f"eq.{user_id}"},
+            headers=_SB_HEADERS,
+        )
+        r.raise_for_status()
 
 
 def is_owner():
@@ -238,6 +269,11 @@ class Owner(commands.Cog, name="Owner"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_load(self) -> None:
+        db_ids = await _fetch_owner_ids()
+        OWNER_IDS.update(db_ids)
+        log.info(f"Loaded {len(db_ids)} owner(s) from Supabase.")
+
     @commands.command(name="reload")
     @is_owner()
     async def reload(self, ctx: commands.Context, *, ext: str = None):
@@ -357,8 +393,11 @@ class Owner(commands.Cog, name="Owner"):
     async def addowner(self, ctx: commands.Context, user: discord.User):
         if user.id in OWNER_IDS:
             return await ctx.send(f"✕ {user.mention} is already an owner.")
+        try:
+            await _add_owner_db(user.id, ctx.author.id)
+        except Exception as e:
+            return await ctx.send(f"✕ Failed to save to database: `{e}`")
         OWNER_IDS.add(user.id)
-        _save_owner_ids(OWNER_IDS)
         await ctx.send(f"✓ {user.mention} added as an owner.")
         log.info(f"Owner added: {user} (ID: {user.id}) by {ctx.author}")
 
@@ -369,8 +408,11 @@ class Owner(commands.Cog, name="Owner"):
             return await ctx.send(f"✕ {user.mention} is not an owner.")
         if len(OWNER_IDS) == 1:
             return await ctx.send("✕ Cannot remove the last owner.")
+        try:
+            await _remove_owner_db(user.id)
+        except Exception as e:
+            return await ctx.send(f"✕ Failed to remove from database: `{e}`")
         OWNER_IDS.discard(user.id)
-        _save_owner_ids(OWNER_IDS)
         await ctx.send(f"✓ {user.mention} removed from owners.")
         log.info(f"Owner removed: {user} (ID: {user.id}) by {ctx.author}")
 

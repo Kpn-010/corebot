@@ -69,6 +69,10 @@ class CoreBot(commands.Bot):
             except Exception as exc:
                 log.error(f"Failed to load {ext}: {exc}", exc_info=exc)
 
+    async def close(self) -> None:
+        await self.db.close()
+        await super().close()
+
     async def on_ready(self) -> None:
         assert self.user is not None
         log.info(f"Ready — {self.user} (ID: {self.user.id}) | {len(self.guilds)} guild(s)")
