@@ -10,6 +10,7 @@ localPort = 8080
 externalPort = 80
 
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Run Bot"
@@ -19,3 +20,15 @@ author = 41296647
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python bot.py"
+
+[[workflows.workflow]]
+name = "Run Bot"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python bot.py"
+
+[workflows.workflow.metadata]
+outputType = "console"
