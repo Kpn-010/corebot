@@ -31,6 +31,7 @@ EXTENSIONS: List[str] = [
     "cogs.groups.channel",
     "cogs.groups.role",
     "cogs.logs",
+    "cogs.searchlabs",
 ]
 
 
