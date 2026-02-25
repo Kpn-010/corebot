@@ -1,10 +1,8 @@
 import asyncio
 import logging
 import os
-import re
 import signal
-import sys
-from typing import List
+from typing import Callable, List
 
 import discord
 from aiohttp import ClientSession, web
@@ -89,10 +87,13 @@ class CoreBot(commands.Bot):
             error = error.original  # type: ignore[assignment]
 
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(
-                f"✕ Missing: `{error.param.name}`\n"
-                f"Usage: `{ctx.prefix}{ctx.command.qualified_name} {ctx.command.signature}`"
-            )
+            # ctx.command can be None if the command lookup itself failed,
+            # so we guard before accessing .qualified_name and .signature.
+            if ctx.command is not None:
+                usage = f"\nUsage: `{ctx.prefix}{ctx.command.qualified_name} {ctx.command.signature}`"
+            else:
+                usage = ""
+            await ctx.send(f"✕ Missing: `{error.param.name}`{usage}")
         elif isinstance(error, commands.BadArgument):
             await ctx.send(f"✕ {error}")
         elif isinstance(error, commands.MissingPermissions):
@@ -144,6 +145,11 @@ class CoreBot(commands.Bot):
         except discord.Forbidden:
             pass
 
+        # guild.member_count is typed as int | None — it is None when the member
+        # list has not been fetched yet. We collapse to int here so that both the
+        # f-string formatting and the _ordinal() call satisfy the type checker.
+        member_count: int = guild.member_count or 0
+
         def fill(text: str) -> str:
             return (
                 text
@@ -151,8 +157,8 @@ class CoreBot(commands.Bot):
                 .replace("{user.name}", member.name)
                 .replace("{user.id}", str(member.id))
                 .replace("{server}", guild.name)
-                .replace("{count}", str(guild.member_count))
-                .replace("{position}", _ordinal(guild.member_count))
+                .replace("{count}", str(member_count))
+                .replace("{position}", _ordinal(member_count))
                 .replace("{invite}", invite_url)
             )
 
@@ -162,21 +168,61 @@ class CoreBot(commands.Bot):
             await channel.send(fill(template))
 
 
-def _parse_welcome_embed(member: discord.Member, raw: str, fill) -> discord.Embed:
+def _extract_tag(raw: str, keyword: str) -> tuple[str | None, str]:
+    """
+    Find the first {keyword <content>} block in raw.
+
+    Uses a brace-depth counter instead of regex so that the content can freely
+    contain braces — Discord mentions like <@123>, nested {user} variables,
+    blockquote lines starting with >, bold/italic markdown, etc. — without the
+    match terminating prematurely on an inner closing brace.
+
+    Returns (content_inside_tag, raw_with_tag_removed).
+    If the tag is not found, returns (None, raw_unchanged).
+    """
+    search = "{" + keyword
+    start = raw.find(search)
+    if start == -1:
+        return None, raw
+
+    depth = 0
+    i = start
+    while i < len(raw):
+        if raw[i] == "{":
+            depth += 1
+        elif raw[i] == "}":
+            depth -= 1
+            if depth == 0:
+                # Slice out the content between the keyword and the closing brace
+                content = raw[start + 1 + len(keyword): i].strip()
+                removed = raw[:start] + raw[i + 1:]
+                return content, removed
+        i += 1
+
+    # Unmatched opening brace — return raw unchanged
+    return None, raw
+
+
+def _parse_welcome_embed(member: discord.Member, raw: str, fill: Callable[[str], str]) -> discord.Embed:
     embed = discord.Embed(color=discord.Color.blurple())
 
-    if m := re.search(r"\{author\s+\{user\}\}", raw):
+    # {author {user}} or {author <@id>} — sets embed author to the joining member
+    content, raw = _extract_tag(raw, "author")
+    if content is not None:
         embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
-        raw = raw[: m.start()] + raw[m.end():]
 
-    if m := re.search(r"\{description\s+(.*?)\}", raw, re.DOTALL):
-        embed.description = fill(m.group(1).strip())
-        raw = raw[: m.start()] + raw[m.end():]
+    # {description <multiline content with full discord markdown>}
+    content, raw = _extract_tag(raw, "description")
+    if content is not None:
+        embed.description = fill(content)
 
-    if m := re.search(r"\{thumbnail\}", raw):
+    # {thumbnail} — sets thumbnail to the member's avatar
+    content, raw = _extract_tag(raw, "thumbnail")
+    if content is not None:
         embed.set_thumbnail(url=member.display_avatar.url)
-        raw = raw[: m.start()] + raw[m.end():]
 
+    # Anything left over after tag extraction becomes the description
+    # if one wasn't already set (handles plain $em with no block tags)
     if leftover := fill(raw.strip()):
         if not embed.description:
             embed.description = leftover

@@ -1,12 +1,12 @@
 import discord
 from discord.ext import commands
 
-
 # All modules with their commands defined statically.
 # Each entry: (title, description, syntax, example, permissions, aliases)
 MODULES = [
     {
-        "group": "Utils",
+        "group":
+        "Utils",
         "commands": [
             {
                 "title": "Ping",
@@ -26,7 +26,8 @@ MODULES = [
             },
             {
                 "title": "Avatar",
-                "description": "Show a user's avatar. Accepts @mention, ID, or name.",
+                "description":
+                "Show a user's avatar. Accepts @mention, ID, or name.",
                 "syntax": "cc avatar [@user]",
                 "example": "cc avatar @john",
                 "permissions": "None",
@@ -34,7 +35,8 @@ MODULES = [
             },
             {
                 "title": "Banner",
-                "description": "Show a user's banner. Accepts @mention, ID, or name.",
+                "description":
+                "Show a user's banner. Accepts @mention, ID, or name.",
                 "syntax": "cc banner [@user]",
                 "example": "cc banner @john",
                 "permissions": "None",
@@ -50,7 +52,8 @@ MODULES = [
             },
             {
                 "title": "Say",
-                "description": "Make the bot send a message. Optional channel target at the end.",
+                "description":
+                "Make the bot send a message. Optional channel target at the end.",
                 "syntax": "cc say <message> [#channel]",
                 "example": "cc say hello everyone #general",
                 "permissions": "Manage Messages",
@@ -59,7 +62,8 @@ MODULES = [
         ],
     },
     {
-        "group": "Info Group",
+        "group":
+        "Info Group",
         "commands": [
             {
                 "title": "Server Info",
@@ -96,11 +100,13 @@ MODULES = [
         ],
     },
     {
-        "group": "Auto Group",
+        "group":
+        "Auto Group",
         "commands": [
             {
                 "title": "Auto Status",
-                "description": "Show current auto role and reaction role settings for this server.",
+                "description":
+                "Show current auto role and reaction role settings for this server.",
                 "syntax": "cc auto",
                 "example": "cc auto",
                 "permissions": "Manage Roles",
@@ -108,7 +114,8 @@ MODULES = [
             },
             {
                 "title": "Auto Role",
-                "description": "Set the role automatically assigned to new members. Use `clear` to remove.",
+                "description":
+                "Set the role automatically assigned to new members. Use `clear` to remove.",
                 "syntax": "cc auto role <@role|ID|name>",
                 "example": "cc ar @Member",
                 "permissions": "Manage Roles",
@@ -116,7 +123,8 @@ MODULES = [
             },
             {
                 "title": "Auto Role (Bot)",
-                "description": "Set the role automatically assigned to bots when they join. Use `clear` to remove.",
+                "description":
+                "Set the role automatically assigned to bots when they join. Use `clear` to remove.",
                 "syntax": "cc auto rolebot <@role|ID|name>",
                 "example": "cc arb @Bots",
                 "permissions": "Manage Roles",
@@ -124,7 +132,8 @@ MODULES = [
             },
             {
                 "title": "Reaction Role Add",
-                "description": "Bind an emoji on a message to a role. Bot auto-adds the reaction. Users get the role by reacting.",
+                "description":
+                "Bind an emoji on a message to a role. Bot auto-adds the reaction. Users get the role by reacting.",
                 "syntax": "cc rr add <message_id> <emoji> <@role|ID|name>",
                 "example": "cc rr add 123456789 🎮 @Gamers",
                 "permissions": "Manage Roles",
@@ -132,7 +141,8 @@ MODULES = [
             },
             {
                 "title": "Reaction Role Remove",
-                "description": "Remove a single emoji→role binding from a message.",
+                "description":
+                "Remove a single emoji→role binding from a message.",
                 "syntax": "cc rr remove <message_id> <emoji>",
                 "example": "cc rr remove 123456789 🎮",
                 "permissions": "Manage Roles",
@@ -140,7 +150,8 @@ MODULES = [
             },
             {
                 "title": "Reaction Role Clear",
-                "description": "Remove all emoji→role bindings from a message.",
+                "description":
+                "Remove all emoji→role bindings from a message.",
                 "syntax": "cc rr clear <message_id>",
                 "example": "cc rr clear 123456789",
                 "permissions": "Manage Roles",
@@ -148,7 +159,8 @@ MODULES = [
             },
             {
                 "title": "Reaction Role List",
-                "description": "List all reaction role bindings configured in this server.",
+                "description":
+                "List all reaction role bindings configured in this server.",
                 "syntax": "cc rr list",
                 "example": "cc rr list",
                 "permissions": "Manage Roles",
@@ -157,11 +169,13 @@ MODULES = [
         ],
     },
     {
-        "group": "Welcome Group",
+        "group":
+        "Welcome Group",
         "commands": [
             {
                 "title": "Welcome Channel",
-                "description": "Set the channel where welcome messages are sent. Use `clear` to remove.",
+                "description":
+                "Set the channel where welcome messages are sent. Use `clear` to remove.",
                 "syntax": "cc welc ch <#channel|ID|name>",
                 "example": "cc welc ch #welcome",
                 "permissions": "Manage Guild",
@@ -169,7 +183,8 @@ MODULES = [
             },
             {
                 "title": "Welcome Message",
-                "description": "Set the welcome message template. Start with `$em` for embed mode.\nVariables: `{user}` `{user.name}` `{user.id}` `{server}` `{count}` `{position}` `{invite}`\nEmbed tags: `{description <text>}` `{thumbnail}` `{author {user}}`",
+                "description":
+                "Set the welcome message template. Start with `$em` for embed mode.\nVariables: `{user}` `{user.name}` `{user.id}` `{server}` `{count}` `{position}` `{invite}`\nEmbed tags: `{description <text>}` `{thumbnail}` `{author {user}}`",
                 "syntax": "cc welc msg <template>",
                 "example": "cc welc msg Welcome {user} to {server}!",
                 "permissions": "Manage Guild",
@@ -186,11 +201,13 @@ MODULES = [
         ],
     },
     {
-        "group": "Channel Group",
+        "group":
+        "Channel Group",
         "commands": [
             {
                 "title": "Channel Create",
-                "description": "Create a text channel. Use `--` to separate name from role access list.",
+                "description":
+                "Create a text channel. Use `--` to separate name from role access list.",
                 "syntax": "cc channel create <name> [-- @role ...]",
                 "example": "cc channel create secret -- @Mods",
                 "permissions": "Manage Channels",
@@ -198,8 +215,10 @@ MODULES = [
             },
             {
                 "title": "Channel Edit",
-                "description": "Edit a channel's name and/or role access. Use `--` before roles.",
-                "syntax": "cc channel edit <channel> [new-name] [-- @role ...]",
+                "description":
+                "Edit a channel's name and/or role access. Use `--` before roles.",
+                "syntax":
+                "cc channel edit <channel> [new-name] [-- @role ...]",
                 "example": "cc channel edit #old new-name -- @Mods",
                 "permissions": "Manage Channels",
                 "aliases": "None",
@@ -215,11 +234,13 @@ MODULES = [
         ],
     },
     {
-        "group": "Role Group",
+        "group":
+        "Role Group",
         "commands": [
             {
                 "title": "Role In",
-                "description": "List all members in a role. Use `everyone` to list all server members. Paginates for large roles.",
+                "description":
+                "List all members in a role. Use `everyone` to list all server members. Paginates for large roles.",
                 "syntax": "cc role in [role]",
                 "example": "cc role in @Moderator",
                 "permissions": "None",
@@ -252,7 +273,8 @@ MODULES = [
             {
                 "title": "Role Edit",
                 "description": "Edit a role's name, color, or icon.",
-                "syntax": "cc role edit <@role|ID|name> [new-name] [#hex] [emoji/url]",
+                "syntax":
+                "cc role edit <@role|ID|name> [new-name] [#hex] [emoji/url]",
                 "example": "cc role edit @Mod SuperMod #00FF00",
                 "permissions": "Manage Roles",
                 "aliases": "None",
@@ -267,7 +289,8 @@ MODULES = [
             },
             {
                 "title": "Role Steal",
-                "description": "Steal a custom emoji from another server and add it to this one.",
+                "description":
+                "Steal a custom emoji from another server and add it to this one.",
                 "syntax": "cc role steal <:emoji:> [name]",
                 "example": "cc role steal :cool: cool_emoji",
                 "permissions": "Manage Emojis",
@@ -276,7 +299,8 @@ MODULES = [
         ],
     },
     {
-        "group": "Moderation",
+        "group":
+        "Moderation",
         "commands": [
             {
                 "title": "Kick",
@@ -304,7 +328,8 @@ MODULES = [
             },
             {
                 "title": "Timeout",
-                "description": "Timeout a member. Duration: `10s` `5m` `2h` `1d` `1w` (max 28d).",
+                "description":
+                "Timeout a member. Duration: `10s` `5m` `2h` `1d` `1w` (max 28d).",
                 "syntax": "cc timeout <@|ID|name> <duration> [reason]",
                 "example": "cc timeout @john 10m spamming",
                 "permissions": "Moderate Members",
@@ -320,7 +345,8 @@ MODULES = [
             },
             {
                 "title": "Purge",
-                "description": "Bulk delete up to 100 messages. Optionally filter by user.",
+                "description":
+                "Bulk delete up to 100 messages. Optionally filter by user.",
                 "syntax": "cc purge <amount> [@user]",
                 "example": "cc purge 20 @john",
                 "permissions": "Manage Messages",
@@ -328,7 +354,8 @@ MODULES = [
             },
             {
                 "title": "Slowmode",
-                "description": "Set slowmode on the current channel. 0 to disable.",
+                "description":
+                "Set slowmode on the current channel. 0 to disable.",
                 "syntax": "cc slowmode <seconds>",
                 "example": "cc slowmode 5",
                 "permissions": "Manage Channels",
@@ -344,7 +371,8 @@ MODULES = [
             },
             {
                 "title": "Lockdown / Release",
-                "description": "Lock or unlock ALL text channels in the server.",
+                "description":
+                "Lock or unlock ALL text channels in the server.",
                 "syntax": "cc lockdown\ncc release",
                 "example": "cc lockdown",
                 "permissions": "Manage Channels",
@@ -352,7 +380,8 @@ MODULES = [
             },
             {
                 "title": "Warn",
-                "description": "Warn a member. Warning is saved and DM'd to the user.",
+                "description":
+                "Warn a member. Warning is saved and DM'd to the user.",
                 "syntax": "cc warn <@|ID|name> [reason]",
                 "example": "cc warn @john rule 3 violation",
                 "permissions": "Manage Messages",
@@ -368,7 +397,8 @@ MODULES = [
             },
             {
                 "title": "Warn Clean",
-                "description": "Clear all or a specific warning from a member.",
+                "description":
+                "Clear all or a specific warning from a member.",
                 "syntax": "cc warnclean <@|ID|name> [#]",
                 "example": "cc warnclean @john 2",
                 "permissions": "Manage Messages",
@@ -376,7 +406,8 @@ MODULES = [
             },
             {
                 "title": "Mute Role",
-                "description": "Set the server's muted role used by `cc mute`.",
+                "description":
+                "Set the server's muted role used by `cc mute`.",
                 "syntax": "cc muterole <@role|ID|name>",
                 "example": "cc muterole @Muted",
                 "permissions": "Manage Roles",
@@ -384,7 +415,8 @@ MODULES = [
             },
             {
                 "title": "Mute",
-                "description": "Mute a member using the configured muted role.",
+                "description":
+                "Mute a member using the configured muted role.",
                 "syntax": "cc mute <@|ID|name> [reason]",
                 "example": "cc mute @john flooding",
                 "permissions": "Manage Roles",
@@ -400,7 +432,8 @@ MODULES = [
             },
             {
                 "title": "Image Mute",
-                "description": "Prevent a member from posting attachments. Bot auto-deletes their media.",
+                "description":
+                "Prevent a member from posting attachments. Bot auto-deletes their media.",
                 "syntax": "cc imute <@|ID|name> [reason]",
                 "example": "cc imute @john posting nsfw",
                 "permissions": "Manage Messages",
@@ -417,11 +450,13 @@ MODULES = [
         ],
     },
     {
-        "group": "Logs Group",
+        "group":
+        "Logs Group",
         "commands": [
             {
                 "title": "Log Status",
-                "description": "View all configured log channels for this server.",
+                "description":
+                "View all configured log channels for this server.",
                 "syntax": "cc log",
                 "example": "cc log",
                 "permissions": "Manage Guild",
@@ -429,7 +464,8 @@ MODULES = [
             },
             {
                 "title": "Log Set",
-                "description": "Set a log channel for a category.\nCategories: `mod` `message` `member` `server` `voice`",
+                "description":
+                "Set a log channel for a category.\nCategories: `mod` `message` `member` `server` `voice`",
                 "syntax": "cc log set <category> <#channel>",
                 "example": "cc log set mod #mod-logs",
                 "permissions": "Manage Guild",
@@ -446,7 +482,8 @@ MODULES = [
         ],
     },
     {
-        "group": "SearchLabs",
+        "group":
+        "SearchLabs",
         "commands": [
             {
                 "title": "Lookup",
@@ -490,7 +527,8 @@ MODULES = [
             },
             {
                 "title": "Lookup — More",
-                "description": "Full paginated breakdown of all meanings, examples, and synonyms.",
+                "description":
+                "Full paginated breakdown of all meanings, examples, and synonyms.",
                 "syntax": "cc ll <word> -more",
                 "example": "cc ll serendipity -more",
                 "permissions": "None",
@@ -500,8 +538,8 @@ MODULES = [
     },
 ]
 
-# Flatten into a list of pages: (group_name, cmd_index_in_group, total_in_group, cmd_data)
-def _build_pages():
+
+def _build_pages() -> list[tuple[str, int, int, dict]]:
     pages = []
     for module in MODULES:
         group = module["group"]
@@ -510,118 +548,133 @@ def _build_pages():
             pages.append((group, i + 1, len(cmds), cmd))
     return pages
 
+
 PAGES = _build_pages()
 
 
-def _make_embed(bot: commands.Bot, page: int, invoker: discord.User | discord.Member) -> discord.Embed:
+def _make_embed(bot: commands.Bot, page: int,
+                invoker: discord.User | discord.Member) -> discord.Embed:
     group, idx, total, cmd = PAGES[page]
 
     embed = discord.Embed(
         title=f"Group: {group} ‣ Module {idx}",
-        description=(
-            f"> {cmd['description']}\n"
-            f"```\n"
-            f"Syntax:  {cmd['syntax']}\n"
-            f"Example: {cmd['example']}\n"
-            f"```\n"
-            f"**Permissions:**\n{cmd['permissions']}"
-        ),
+        description=(f"> {cmd['description']}\n"
+                     f"```\n"
+                     f"Syntax:  {cmd['syntax']}\n"
+                     f"Example: {cmd['example']}\n"
+                     f"```\n"
+                     f"**Permissions:**\n{cmd['permissions']}"),
         color=discord.Color.blurple(),
     )
-
     embed.set_author(
         name="Corebot Help",
         icon_url=bot.user.display_avatar.url if bot.user else None,
     )
-
     embed.set_footer(
         text=f"Aliases: {cmd['aliases']}  ⌁  Page {page + 1} of {len(PAGES)}",
         icon_url=invoker.display_avatar.url,
     )
-
     return embed
 
 
 class HelpView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, invoker: discord.User | discord.Member, page: int = 0):
+    # Declared at class level so pyright knows the attribute exists.
+    # Assigned after the message is sent.
+    message: discord.Message
+
+    def __init__(self,
+                 bot: commands.Bot,
+                 invoker: discord.User | discord.Member,
+                 page: int = 0) -> None:
         super().__init__(timeout=120)
         self.bot = bot
         self.invoker = invoker
         self.page = page
         self._update_buttons()
 
-    def _update_buttons(self):
+    def _update_buttons(self) -> None:
         self.prev_btn.disabled = self.page == 0
         self.next_btn.disabled = self.page == len(PAGES) - 1
 
-    async def _edit(self, interaction: discord.Interaction):
+    async def _edit(self, interaction: discord.Interaction) -> None:
         self._update_buttons()
         await interaction.response.edit_message(
             embed=_make_embed(self.bot, self.page, self.invoker),
             view=self,
         )
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    async def interaction_check(self,
+                                interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.invoker.id:
-            await interaction.response.send_message("✕ This menu belongs to someone else.", ephemeral=True)
+            await interaction.response.send_message(
+                "✕ This menu belongs to someone else.", ephemeral=True)
             return False
         return True
 
-    async def on_timeout(self):
+    async def on_timeout(self) -> None:
+        # Item[Self] does not expose .disabled — narrow to Button first.
         for item in self.children:
-            item.disabled = True
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
         try:
             await self.message.edit(view=self)
         except Exception:
             pass
 
     @discord.ui.button(label="←", style=discord.ButtonStyle.secondary)
-    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def prev_btn(self, interaction: discord.Interaction,
+                       button: discord.ui.Button) -> None:
         self.page -= 1
         await self._edit(interaction)
 
     @discord.ui.button(label="✕", style=discord.ButtonStyle.danger)
-    async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.message.delete()
+    async def close_btn(self, interaction: discord.Interaction,
+                        button: discord.ui.Button) -> None:
+        # interaction.message is Message | None — guard before calling .delete().
+        if interaction.message is not None:
+            await interaction.message.delete()
 
     @discord.ui.button(label="→", style=discord.ButtonStyle.secondary)
-    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_btn(self, interaction: discord.Interaction,
+                       button: discord.ui.Button) -> None:
         self.page += 1
         await self._edit(interaction)
 
 
 class Help(commands.Cog, name="Help"):
-    def __init__(self, bot: commands.Bot):
+
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @commands.command(name="help", aliases=["h"])
-    async def help(self, ctx: commands.Context, *, query: str = None):
+    async def help(self,
+                   ctx: commands.Context,
+                   *,
+                   query: str | None = None) -> None:
         """Show the help menu. Optionally jump to a command: cc help ban"""
         page = 0
 
         if query:
             query = query.lower().strip()
             for i, (group, idx, total, cmd) in enumerate(PAGES):
-                if (
-                    query in cmd["title"].lower()
-                    or query in cmd["syntax"].lower()
-                    or query in cmd["aliases"].lower()
-                ):
+                if (query in cmd["title"].lower()
+                        or query in cmd["syntax"].lower()
+                        or query in cmd["aliases"].lower()):
                     page = i
                     break
 
         view = HelpView(self.bot, ctx.author, page)
-        msg = await ctx.send(embed=_make_embed(self.bot, page, ctx.author), view=view)
+        msg = await ctx.send(embed=_make_embed(self.bot, page, ctx.author),
+                             view=view)
         view.message = msg
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
+    async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
 
         content = message.content.strip()
 
-        # Bare prefix "cc" with nothing after it
         if content.lower() == "cc":
             view = HelpView(self.bot, message.author, 0)
             msg = await message.channel.send(
@@ -631,9 +684,10 @@ class Help(commands.Cog, name="Help"):
             view.message = msg
             return
 
-        # Bare mention with nothing else
         if self.bot.user and self.bot.user.mentioned_in(message):
-            mention_strs = [f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"]
+            mention_strs = [
+                f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"
+            ]
             if content in mention_strs:
                 view = HelpView(self.bot, message.author, 0)
                 msg = await message.channel.send(
@@ -643,5 +697,5 @@ class Help(commands.Cog, name="Help"):
                 view.message = msg
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Help(bot))

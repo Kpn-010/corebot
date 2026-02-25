@@ -1,11 +1,19 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import discord
 from discord.ext import commands
+
 from converters import RoleConverter
+
+if TYPE_CHECKING:
+    from bot import CoreBot
 
 
 class Auto(commands.Cog, name="Auto"):
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: CoreBot) -> None:
         self.bot = bot
 
     # ── cc auto ────────────────────────────────────────────────────────────
@@ -13,8 +21,9 @@ class Auto(commands.Cog, name="Auto"):
     @commands.group(name="auto", invoke_without_command=True)
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
-    async def auto(self, ctx: commands.Context):
-        guild_data = await ctx.bot.db.load(ctx.guild.id)
+    async def auto(self, ctx: commands.Context) -> None:
+        assert ctx.guild is not None
+        guild_data = await self.bot.db.load(ctx.guild.id)
         ar = guild_data["auto_role"]
         rr = guild_data.get("reaction_roles", {})
 
@@ -63,15 +72,18 @@ class Auto(commands.Cog, name="Auto"):
     @auto.command(name="role", aliases=["r"])
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
-    async def auto_role(self, ctx: commands.Context, *, target: str):
+    async def auto_role(self, ctx: commands.Context, *, target: str) -> None:
+        assert ctx.guild is not None
         if target.lower() == "clear":
-            await ctx.bot.db.set(ctx.guild.id, ["auto_role", "member"], None)
-            return await ctx.send("✓ Member auto role cleared.")
+            await self.bot.db.set(ctx.guild.id, ["auto_role", "member"], None)
+            await ctx.send("✓ Member auto role cleared.")
+            return
         role = await RoleConverter().convert(ctx, target)
         if role >= ctx.guild.me.top_role:
-            return await ctx.send(
+            await ctx.send(
                 "✕ That role is higher than or equal to my top role.")
-        await ctx.bot.db.set(ctx.guild.id, ["auto_role", "member"], role.id)
+            return
+        await self.bot.db.set(ctx.guild.id, ["auto_role", "member"], role.id)
         await ctx.send(f"✓ Members will receive {role.mention} when they join."
                        )
 
@@ -80,15 +92,19 @@ class Auto(commands.Cog, name="Auto"):
     @auto.command(name="rolebot", aliases=["rb"])
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
-    async def auto_role_bot(self, ctx: commands.Context, *, target: str):
+    async def auto_role_bot(self, ctx: commands.Context, *,
+                            target: str) -> None:
+        assert ctx.guild is not None
         if target.lower() == "clear":
-            await ctx.bot.db.set(ctx.guild.id, ["auto_role", "bot"], None)
-            return await ctx.send("✓ Bot auto role cleared.")
+            await self.bot.db.set(ctx.guild.id, ["auto_role", "bot"], None)
+            await ctx.send("✓ Bot auto role cleared.")
+            return
         role = await RoleConverter().convert(ctx, target)
         if role >= ctx.guild.me.top_role:
-            return await ctx.send(
+            await ctx.send(
                 "✕ That role is higher than or equal to my top role.")
-        await ctx.bot.db.set(ctx.guild.id, ["auto_role", "bot"], role.id)
+            return
+        await self.bot.db.set(ctx.guild.id, ["auto_role", "bot"], role.id)
         await ctx.send(f"✓ Bots will receive {role.mention} when they join.")
 
     # ── Reaction Roles ─────────────────────────────────────────────────────
@@ -96,7 +112,7 @@ class Auto(commands.Cog, name="Auto"):
     @commands.group(name="rr", invoke_without_command=True)
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
-    async def rr(self, ctx: commands.Context):
+    async def rr(self, ctx: commands.Context) -> None:
         await ctx.send(
             "Reaction role subcommands:\n"
             "`cc rr add <message_id> <emoji> <@role|ID|name>` — bind emoji to role\n"
@@ -108,14 +124,15 @@ class Auto(commands.Cog, name="Auto"):
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True, add_reactions=True)
     async def rr_add(self, ctx: commands.Context, message_id: int, emoji: str,
-                     *, target: str):
+                     *, target: str) -> None:
         """Bind an emoji on a message to a role. cc rr add <msg_id> <emoji> <role>"""
+        assert ctx.guild is not None
         role = await RoleConverter().convert(ctx, target)
         if role >= ctx.guild.me.top_role:
-            return await ctx.send(
+            await ctx.send(
                 "✕ That role is higher than or equal to my top role.")
+            return
 
-        # Resolve the message from any channel in the guild
         msg = None
         for channel in ctx.guild.text_channels:
             try:
@@ -125,35 +142,35 @@ class Auto(commands.Cog, name="Auto"):
                 continue
 
         if not msg:
-            return await ctx.send(
+            await ctx.send(
                 "✕ Message not found. Make sure the ID is correct and I can see that channel."
             )
+            return
 
-        # Add the reaction to the message
         try:
             await msg.add_reaction(emoji)
         except discord.HTTPException:
-            return await ctx.send(
-                "✕ Invalid emoji or I couldn't add that reaction.")
+            await ctx.send("✕ Invalid emoji or I couldn't add that reaction.")
+            return
 
-        # Save to db
-        data = await ctx.bot.db.load(ctx.guild.id)
+        data = await self.bot.db.load(ctx.guild.id)
         data["reaction_roles"].setdefault(str(message_id), {})[emoji] = role.id
-        await ctx.bot.db.save(ctx.guild.id, data)
-
+        await self.bot.db.save(ctx.guild.id, data)
         await ctx.send(f"✓ {emoji} on message `{message_id}` → {role.mention}")
 
     @rr.command(name="remove")
     @commands.has_permissions(manage_roles=True)
     async def rr_remove(self, ctx: commands.Context, message_id: int,
-                        emoji: str):
+                        emoji: str) -> None:
         """Remove an emoji→role binding. cc rr remove <msg_id> <emoji>"""
-        data = await ctx.bot.db.load(ctx.guild.id)
+        assert ctx.guild is not None
+        data = await self.bot.db.load(ctx.guild.id)
         msg_map = data["reaction_roles"].get(str(message_id), {})
 
         if emoji not in msg_map:
-            return await ctx.send(
-                "✕ No binding found for that emoji on that message.")
+            await ctx.send("✕ No binding found for that emoji on that message."
+                           )
+            return
 
         del msg_map[emoji]
         if not msg_map:
@@ -161,31 +178,35 @@ class Auto(commands.Cog, name="Auto"):
         else:
             data["reaction_roles"][str(message_id)] = msg_map
 
-        await ctx.bot.db.save(ctx.guild.id, data)
+        await self.bot.db.save(ctx.guild.id, data)
         await ctx.send(
             f"✓ Removed binding for {emoji} on message `{message_id}`.")
 
     @rr.command(name="clear")
     @commands.has_permissions(manage_roles=True)
-    async def rr_clear(self, ctx: commands.Context, message_id: int):
+    async def rr_clear(self, ctx: commands.Context, message_id: int) -> None:
         """Remove all emoji→role bindings for a message. cc rr clear <msg_id>"""
-        data = await ctx.bot.db.load(ctx.guild.id)
+        assert ctx.guild is not None
+        data = await self.bot.db.load(ctx.guild.id)
         if str(message_id) not in data["reaction_roles"]:
-            return await ctx.send("✕ No reaction roles set for that message.")
+            await ctx.send("✕ No reaction roles set for that message.")
+            return
         del data["reaction_roles"][str(message_id)]
-        await ctx.bot.db.save(ctx.guild.id, data)
+        await self.bot.db.save(ctx.guild.id, data)
         await ctx.send(
             f"✓ Cleared all reaction roles for message `{message_id}`.")
 
     @rr.command(name="list")
     @commands.has_permissions(manage_roles=True)
-    async def rr_list(self, ctx: commands.Context):
+    async def rr_list(self, ctx: commands.Context) -> None:
         """List all reaction role bindings in this server."""
-        data = await ctx.bot.db.load(ctx.guild.id)
+        assert ctx.guild is not None
+        data = await self.bot.db.load(ctx.guild.id)
         rr = data.get("reaction_roles", {})
 
         if not rr:
-            return await ctx.send("✕ No reaction roles configured.")
+            await ctx.send("✕ No reaction roles configured.")
+            return
 
         embed = discord.Embed(title="Reaction Roles",
                               color=discord.Color.blurple())
@@ -196,11 +217,9 @@ class Auto(commands.Cog, name="Auto"):
                 lines.append(
                     f"{emoji} → {role.mention if role else f'Unknown ({role_id})'}"
                 )
-            embed.add_field(
-                name=f"Message `{msg_id}`",
-                value="\n".join(lines),
-                inline=False,
-            )
+            embed.add_field(name=f"Message `{msg_id}`",
+                            value="\n".join(lines),
+                            inline=False)
         await ctx.send(embed=embed)
 
     # ── Reaction role event listeners ──────────────────────────────────────
@@ -210,8 +229,9 @@ class Auto(commands.Cog, name="Auto"):
         return data.get("reaction_roles", {}).get(str(message_id), {})
 
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self,
-                                  payload: discord.RawReactionActionEvent):
+    async def on_raw_reaction_add(
+            self, payload: discord.RawReactionActionEvent) -> None:
+        assert self.bot.user is not None
         if payload.guild_id is None or payload.user_id == self.bot.user.id:
             return
         rr_map = await self._get_rr_map(payload.guild_id, payload.message_id)
@@ -235,8 +255,9 @@ class Auto(commands.Cog, name="Auto"):
                 pass
 
     @commands.Cog.listener()
-    async def on_raw_reaction_remove(self,
-                                     payload: discord.RawReactionActionEvent):
+    async def on_raw_reaction_remove(
+            self, payload: discord.RawReactionActionEvent) -> None:
+        assert self.bot.user is not None
         if payload.guild_id is None or payload.user_id == self.bot.user.id:
             return
         rr_map = await self._get_rr_map(payload.guild_id, payload.message_id)
@@ -265,22 +286,28 @@ class Auto(commands.Cog, name="Auto"):
 
 class AutoAliases(commands.Cog, name="AutoAliases"):
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: CoreBot) -> None:
         self.bot = bot
 
     @commands.command(name="ar")
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
-    async def ar(self, ctx: commands.Context, *, target: str):
-        await ctx.invoke(self.bot.get_command("auto role"), target=target)
+    async def ar(self, ctx: commands.Context, *, target: str) -> None:
+        # Fetch the cog directly and call the callback to avoid Command[CogT]
+        # invariance issues that arise from ctx.invoke with a looked-up command.
+        auto_cog = self.bot.cogs.get("Auto")
+        if isinstance(auto_cog, Auto):
+            await auto_cog.auto_role(ctx, target=target)
 
     @commands.command(name="arb")
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
-    async def arb(self, ctx: commands.Context, *, target: str):
-        await ctx.invoke(self.bot.get_command("auto rolebot"), target=target)
+    async def arb(self, ctx: commands.Context, *, target: str) -> None:
+        auto_cog = self.bot.cogs.get("Auto")
+        if isinstance(auto_cog, Auto):
+            await auto_cog.auto_role_bot(ctx, target=target)
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: CoreBot) -> None:
     await bot.add_cog(Auto(bot))
     await bot.add_cog(AutoAliases(bot))

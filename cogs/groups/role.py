@@ -6,12 +6,13 @@ cc role delete <@role|ID|name>
 cc role steal <emoji> [name]
 """
 
+import re
+
+import aiohttp
 import discord
 from discord.ext import commands
-from converters import resolve_role, RoleConverter
-import re
-import aiohttp
-import io
+
+from converters import RoleConverter, resolve_role
 
 
 def _parse_color(token: str) -> discord.Color | None:
@@ -26,7 +27,8 @@ def _parse_color(token: str) -> discord.Color | None:
 async def _fetch_bytes(url: str) -> bytes | None:
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:
                     return await resp.read()
     except Exception:
@@ -53,7 +55,11 @@ async def _get_emoji_image(ctx: commands.Context, token: str) -> bytes | None:
 
 
 class RoleInView(discord.ui.View):
-    def __init__(self, invoker, pages, make_embed):
+    # Declared at class level so pyright knows the attribute exists.
+    message: discord.Message
+
+    def __init__(self, invoker: discord.Member | discord.User, pages: list,
+                 make_embed) -> None:
         super().__init__(timeout=120)
         self.invoker = invoker
         self.pages = pages
@@ -61,52 +67,64 @@ class RoleInView(discord.ui.View):
         self.page = 0
         self._sync()
 
-    def _sync(self):
+    def _sync(self) -> None:
         self.prev_btn.disabled = self.page == 0
         self.next_btn.disabled = self.page == len(self.pages) - 1
 
-    async def _edit(self, interaction: discord.Interaction):
+    async def _edit(self, interaction: discord.Interaction) -> None:
         self._sync()
-        await interaction.response.edit_message(embed=self.make_embed(self.page), view=self)
+        await interaction.response.edit_message(embed=self.make_embed(
+            self.page),
+                                                view=self)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    async def interaction_check(self,
+                                interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.invoker.id:
-            await interaction.response.send_message("✕ This menu belongs to someone else.", ephemeral=True)
+            await interaction.response.send_message(
+                "✕ This menu belongs to someone else.", ephemeral=True)
             return False
         return True
 
-    async def on_timeout(self):
+    async def on_timeout(self) -> None:
+        # Item[Self] does not expose .disabled — narrow to Button first.
         for item in self.children:
-            item.disabled = True
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
         try:
             await self.message.edit(view=self)
         except Exception:
             pass
 
     @discord.ui.button(label="←", style=discord.ButtonStyle.secondary)
-    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def prev_btn(self, interaction: discord.Interaction,
+                       button: discord.ui.Button) -> None:
         self.page -= 1
         await self._edit(interaction)
 
     @discord.ui.button(label="✕", style=discord.ButtonStyle.danger)
-    async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.message.delete()
+    async def close_btn(self, interaction: discord.Interaction,
+                        button: discord.ui.Button) -> None:
+        # interaction.message is Message | None — guard before calling .delete().
+        if interaction.message is not None:
+            await interaction.message.delete()
 
     @discord.ui.button(label="→", style=discord.ButtonStyle.secondary)
-    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_btn(self, interaction: discord.Interaction,
+                       button: discord.ui.Button) -> None:
         self.page += 1
         await self._edit(interaction)
 
 
 class Role(commands.Cog, name="Role"):
-    def __init__(self, bot: commands.Bot):
+
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     # ── Group ──────────────────────────────────────────────────────────────
     @commands.group(name="role", invoke_without_command=True)
     @commands.guild_only()
     @commands.has_permissions(manage_roles=True)
-    async def role(self, ctx: commands.Context):
+    async def role(self, ctx: commands.Context) -> None:
         """Role management group."""
         await ctx.send(
             "**Role Commands:**\n"
@@ -123,16 +141,18 @@ class Role(commands.Cog, name="Role"):
     @role.command(name="add")
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
-    async def role_add(self, ctx: commands.Context, member: discord.Member, *, target: str):
-        """
-        Give a role to a member.
-        Usage: cc role add <@member|ID> <@role|ID|name>
-        """
+    async def role_add(self, ctx: commands.Context, member: discord.Member, *,
+                       target: str) -> None:
+        """Give a role to a member. Usage: cc role add <@member|ID> <@role|ID|name>"""
+        assert ctx.guild is not None
         role = await RoleConverter().convert(ctx, target)
         if role >= ctx.guild.me.top_role:
-            return await ctx.send("✕ That role is higher than or equal to my top role.")
+            await ctx.send(
+                "✕ That role is higher than or equal to my top role.")
+            return
         if role in member.roles:
-            return await ctx.send(f"✕ {member.mention} already has {role.mention}.")
+            await ctx.send(f"✕ {member.mention} already has {role.mention}.")
+            return
         await member.add_roles(role, reason=f"Role added by {ctx.author}")
         await ctx.send(f"✓ Gave {role.mention} to {member.mention}.")
 
@@ -140,28 +160,30 @@ class Role(commands.Cog, name="Role"):
     @role.command(name="remove")
     @commands.has_permissions(manage_roles=True)
     @commands.bot_has_permissions(manage_roles=True)
-    async def role_remove(self, ctx: commands.Context, member: discord.Member, *, target: str):
-        """
-        Remove a role from a member.
-        Usage: cc role remove <@member|ID> <@role|ID|name>
-        """
+    async def role_remove(self, ctx: commands.Context, member: discord.Member,
+                          *, target: str) -> None:
+        """Remove a role from a member. Usage: cc role remove <@member|ID> <@role|ID|name>"""
+        assert ctx.guild is not None
         role = await RoleConverter().convert(ctx, target)
         if role >= ctx.guild.me.top_role:
-            return await ctx.send("✕ That role is higher than or equal to my top role.")
+            await ctx.send(
+                "✕ That role is higher than or equal to my top role.")
+            return
         if role not in member.roles:
-            return await ctx.send(f"✕ {member.mention} does not have {role.mention}.")
+            await ctx.send(f"✕ {member.mention} does not have {role.mention}.")
+            return
         await member.remove_roles(role, reason=f"Role removed by {ctx.author}")
         await ctx.send(f"✓ Removed {role.mention} from {member.mention}.")
 
     # ── cc role in ─────────────────────────────────────────────────────────
     @role.command(name="in")
     @commands.guild_only()
-    async def role_in(self, ctx: commands.Context, *, target: str = "everyone"):
-        """
-        List members in a role.
-        Usage: cc role in [role]
-        Uses everyone if no role given. Paginates if over 50 members.
-        """
+    async def role_in(self,
+                      ctx: commands.Context,
+                      *,
+                      target: str = "everyone") -> None:
+        """List members in a role. Usage: cc role in [role]"""
+        assert ctx.guild is not None
         if target.lower() in ("everyone", "all", "@everyone"):
             members = ctx.guild.members
             role_name = "@everyone"
@@ -171,31 +193,36 @@ class Role(commands.Cog, name="Role"):
             role_name = role.name
 
         if not members:
-            return await ctx.send(f"✕ No members found in **{role_name}**.")
+            await ctx.send(f"✕ No members found in **{role_name}**.")
+            return
 
-        # Sort by display name
         members = sorted(members, key=lambda m: m.display_name.lower())
         total = len(members)
 
-        # Split into pages of 20
         page_size = 20
         pages = [members[i:i + page_size] for i in range(0, total, page_size)]
 
         def make_embed(page_idx: int) -> discord.Embed:
             chunk = pages[page_idx]
-            lines = [f"`{i + 1 + page_idx * page_size}.` {m.mention} — {m.display_name}" for i, m in enumerate(chunk)]
+            lines = [
+                f"`{i + 1 + page_idx * page_size}.` {m.mention} — {m.display_name}"
+                for i, m in enumerate(chunk)
+            ]
             embed = discord.Embed(
                 title=f"Members in {role_name}",
                 description="\n".join(lines),
                 color=discord.Color.blurple(),
             )
-            embed.set_footer(text=f"{total} member(s) total  ⌁  Page {page_idx + 1} of {len(pages)}")
+            embed.set_footer(
+                text=
+                f"{total} member(s) total  ⌁  Page {page_idx + 1} of {len(pages)}"
+            )
             return embed
 
         if len(pages) == 1:
-            return await ctx.send(embed=make_embed(0))
+            await ctx.send(embed=make_embed(0))
+            return
 
-        # Paginated view
         view = RoleInView(ctx.author, pages, make_embed)
         msg = await ctx.send(embed=make_embed(0), view=view)
         view.message = msg
@@ -203,12 +230,9 @@ class Role(commands.Cog, name="Role"):
     # ── cc role create ─────────────────────────────────────────────────────
     @role.command(name="create")
     @commands.bot_has_permissions(manage_roles=True)
-    async def role_create(self, ctx: commands.Context, *, args: str):
-        """
-        Create a role.
-        Usage: cc role create <n> [#hex_color] [custom_emoji or URL]
-        Example: cc role create Moderator #FF5733
-        """
+    async def role_create(self, ctx: commands.Context, *, args: str) -> None:
+        """Create a role. Usage: cc role create <n> [#hex_color] [custom_emoji or URL]"""
+        assert ctx.guild is not None
         parts = args.split()
         name_parts = []
         color = discord.Color.default()
@@ -216,12 +240,8 @@ class Role(commands.Cog, name="Role"):
 
         for i, part in enumerate(parts):
             c = _parse_color(part)
-            if c is not None and not name_parts:
-                # color before name? skip — only apply if we have a name
-                pass
             if c is not None and name_parts:
                 color = c
-                # Check remaining for icon
                 remaining = parts[i + 1:]
                 if remaining:
                     icon_bytes = await _get_emoji_image(ctx, remaining[0])
@@ -229,13 +249,15 @@ class Role(commands.Cog, name="Role"):
             else:
                 name_parts.append(part)
 
-        name = " ".join(name_parts) if name_parts else args.split()[0]
+        name = " ".join(name_parts) if name_parts else parts[0]
 
-        kwargs = {"name": name, "color": color}
+        kwargs: dict = {"name": name, "color": color}
         if icon_bytes and "ROLE_ICONS" in ctx.guild.features:
             kwargs["display_icon"] = icon_bytes
-        elif icon_bytes and "ROLE_ICONS" not in ctx.guild.features:
-            await ctx.send("! This server doesn't support role icons (requires level 2 boost). Role created without icon.")
+        elif icon_bytes:
+            await ctx.send(
+                "! This server doesn't support role icons (requires level 2 boost). Role created without icon."
+            )
 
         new_role = await ctx.guild.create_role(**kwargs)
         embed = discord.Embed(title="✓ Role Created", color=new_role.color)
@@ -247,19 +269,18 @@ class Role(commands.Cog, name="Role"):
     # ── cc role edit ───────────────────────────────────────────────────────
     @role.command(name="edit")
     @commands.bot_has_permissions(manage_roles=True)
-    async def role_edit(self, ctx: commands.Context, *, args: str):
-        """
-        Edit an existing role.
-        Usage: cc role edit <@role|ID|name> [new_name] [#hex] [emoji/url]
-        """
+    async def role_edit(self, ctx: commands.Context, *, args: str) -> None:
+        """Edit an existing role. Usage: cc role edit <@role|ID|name> [new_name] [#hex] [emoji/url]"""
+        assert ctx.guild is not None
         parts = args.split()
         if not parts:
-            return await ctx.send("✕ Please specify a role.")
+            await ctx.send("✕ Please specify a role.")
+            return
 
-        # First token is the target role
         role = await resolve_role(ctx, parts[0])
         if not role:
-            return await ctx.send(f"✕ Role `{parts[0]}` not found.")
+            await ctx.send(f"✕ Role `{parts[0]}` not found.")
+            return
 
         remaining = parts[1:]
         new_name = None
@@ -270,14 +291,16 @@ class Role(commands.Cog, name="Role"):
             c = _parse_color(part)
             if c is not None:
                 new_color = c
-                icon_token = remaining[i + 1] if i + 1 < len(remaining) else None
+                icon_token = remaining[i +
+                                       1] if i + 1 < len(remaining) else None
                 if icon_token:
                     icon_bytes = await _get_emoji_image(ctx, icon_token)
                 break
             else:
-                new_name = (new_name + " " + part).strip() if new_name else part
+                new_name = (new_name + " " +
+                            part).strip() if new_name else part
 
-        kwargs = {}
+        kwargs: dict = {}
         if new_name:
             kwargs["name"] = new_name
         if new_color is not None:
@@ -286,7 +309,9 @@ class Role(commands.Cog, name="Role"):
             kwargs["display_icon"] = icon_bytes
 
         if not kwargs:
-            return await ctx.send("✕ No changes provided. Specify a new name, color, or icon.")
+            await ctx.send(
+                "✕ No changes provided. Specify a new name, color, or icon.")
+            return
 
         await role.edit(**kwargs)
         changes = []
@@ -302,16 +327,16 @@ class Role(commands.Cog, name="Role"):
     # ── cc role delete ─────────────────────────────────────────────────────
     @role.command(name="delete")
     @commands.bot_has_permissions(manage_roles=True)
-    async def role_delete(self, ctx: commands.Context, *, target: str):
-        """
-        Delete a role.
-        Usage: cc role delete <@role|ID|name>
-        """
+    async def role_delete(self, ctx: commands.Context, *, target: str) -> None:
+        """Delete a role. Usage: cc role delete <@role|ID|name>"""
+        assert ctx.guild is not None
         role = await resolve_role(ctx, target)
         if not role:
-            return await ctx.send(f"✕ Role `{target}` not found.")
+            await ctx.send(f"✕ Role `{target}` not found.")
+            return
         if role >= ctx.guild.me.top_role:
-            return await ctx.send("✕ I can't delete a role above my own.")
+            await ctx.send("✕ I can't delete a role above my own.")
+            return
 
         name = role.name
         await role.delete(reason=f"Deleted by {ctx.author}")
@@ -321,15 +346,19 @@ class Role(commands.Cog, name="Role"):
     @role.command(name="steal")
     @commands.has_permissions(manage_emojis=True)
     @commands.bot_has_permissions(manage_emojis=True)
-    async def role_steal(self, ctx: commands.Context, emoji_token: str, *, name: str = None):
-        """
-        Steal an emoji from another server and add it to this one.
-        Usage: cc role steal <emoji> [name]
-        The emoji can be a custom emoji from any server the bot is in.
-        """
+    async def role_steal(self,
+                         ctx: commands.Context,
+                         emoji_token: str,
+                         *,
+                         name: str | None = None) -> None:
+        """Steal an emoji from another server. Usage: cc role steal <emoji> [name]"""
+        assert ctx.guild is not None
         custom_match = re.match(r"<(a?):(\w+):(\d+)>", emoji_token)
         if not custom_match:
-            return await ctx.send("✕ Please provide a custom emoji (not a built-in one). Example: `cc role steal :emoji:`")
+            await ctx.send(
+                "✕ Please provide a custom emoji (not a built-in one). Example: `cc role steal :emoji:`"
+            )
+            return
 
         animated = bool(custom_match.group(1))
         emoji_name = name or custom_match.group(2)
@@ -339,14 +368,17 @@ class Role(commands.Cog, name="Role"):
 
         img_bytes = await _fetch_bytes(url)
         if not img_bytes:
-            return await ctx.send("✕ Failed to fetch the emoji image.")
+            await ctx.send("✕ Failed to fetch the emoji image.")
+            return
 
         try:
-            new_emoji = await ctx.guild.create_custom_emoji(name=emoji_name, image=img_bytes)
-            await ctx.send(f"✓ Added emoji {new_emoji} as `:{new_emoji.name}:`")
+            new_emoji = await ctx.guild.create_custom_emoji(name=emoji_name,
+                                                            image=img_bytes)
+            await ctx.send(f"✓ Added emoji {new_emoji} as `:{new_emoji.name}:`"
+                           )
         except discord.HTTPException as e:
             await ctx.send(f"✕ Failed to add emoji: {e}")
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Role(bot))

@@ -28,7 +28,8 @@ def _default_guild() -> dict:
         "warnings": {},
         "welcome": {
             "channel_id": None,
-            "message": "Welcome {user} to **{server}**! You are member #{count}.",
+            "message":
+            "Welcome {user} to **{server}**! You are member #{count}.",
             "embed": False,
         },
         "auto_role": {
@@ -38,11 +39,11 @@ def _default_guild() -> dict:
         "muted_role": None,
         "image_muted": {},
         "logs": {
-            "mod":     None,
+            "mod": None,
             "message": None,
-            "member":  None,
-            "server":  None,
-            "voice":   None,
+            "member": None,
+            "server": None,
+            "voice": None,
         },
         "reaction_roles": {},
     }
@@ -78,7 +79,10 @@ class GuildDB:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     r = await client.get(
                         _sb_url("guild_data"),
-                        params={"guild_id": f"eq.{guild_id}", "select": "data"},
+                        params={
+                            "guild_id": f"eq.{guild_id}",
+                            "select": "data"
+                        },
                         headers=_sb_headers(),
                     )
                     r.raise_for_status()
@@ -106,7 +110,8 @@ class GuildDB:
                             "data": data,
                             "updated_at": "now()",
                         },
-                        headers=_sb_headers("resolution=merge-duplicates,return=minimal"),
+                        headers=_sb_headers(
+                            "resolution=merge-duplicates,return=minimal"),
                     )
                     r.raise_for_status()
             except Exception as e:

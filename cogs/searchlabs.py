@@ -1,3 +1,4 @@
+import re
 import discord
 from discord.ext import commands
 import httpx
@@ -6,13 +7,11 @@ DICT_API = "https://api.dictionaryapi.dev/api/v2/entries/en"
 
 VALID_FLAGS = {"-pos", "-sentence", "-origin", "-syn", "-more"}
 
-import re as _re
-
 
 def _clean_sentence_words(text: str) -> list[str]:
     """Strip mentions, punctuation and return meaningful words from a sentence."""
-    text = _re.sub(r"<@?!?[0-9]+>", "", text)
-    text = _re.sub(r"[^\w\s']", " ", text)
+    text = re.sub(r"<@?!?[0-9]+>", "", text)
+    text = re.sub(r"[^\w\s']", " ", text)
     return [w for w in text.split() if w.isalpha() and len(w) > 1]
 
 
@@ -26,7 +25,7 @@ def _parse_position_flag(parts: list[str]) -> tuple[int | None, list[str]]:
     position = None
     for p in parts:
         if p.startswith("-") and p[1:].isdigit():
-            position = int(p[1:]) - 1  # convert to 0-based
+            position = int(p[1:]) - 1
         else:
             remaining.append(p)
     return position, remaining
@@ -84,9 +83,6 @@ def _get_origin(data: list) -> str:
         origin = entry.get("origin", "")
         if origin:
             return origin
-        # Some APIs put it in etymologies
-        for meaning in entry.get("meanings", []):
-            pass
     return ""
 
 
@@ -100,7 +96,8 @@ def _get_phonetic(data: list) -> str:
 
 def _get_synonyms(data: list) -> tuple[list, list]:
     """Returns (synonyms, antonyms) across all meanings."""
-    syns, ants = set(), set()
+    syns: set[str] = set()
+    ants: set[str] = set()
     for entry in data:
         for meaning in entry.get("meanings", []):
             for s in meaning.get("synonyms", []):
@@ -115,8 +112,9 @@ def _get_synonyms(data: list) -> tuple[list, list]:
     return list(syns)[:10], list(ants)[:10]
 
 
-def _base_embed(word: str, phonetic: str,
-                color=discord.Color.blurple()) -> discord.Embed:
+def _base_embed(
+    word: str, phonetic: str, color: discord.Color = discord.Color.blurple()
+) -> discord.Embed:
     title = f"{word}"
     if phonetic:
         title += f"  {phonetic}"
@@ -126,8 +124,12 @@ def _base_embed(word: str, phonetic: str,
 
 
 class MoreView(discord.ui.View):
+    # Declared as a class-level attribute so pyright knows it exists.
+    # Assigned after the message is sent.
+    message: discord.Message
 
-    def __init__(self, invoker, word, pages):
+    def __init__(self, invoker: discord.Member | discord.User, word: str,
+                 pages: list[dict]):
         super().__init__(timeout=120)
         self.invoker = invoker
         self.word = word
@@ -135,16 +137,13 @@ class MoreView(discord.ui.View):
         self.page = 0
         self._sync()
 
-    def _sync(self):
+    def _sync(self) -> None:
         self.prev_btn.disabled = self.page == 0
         self.next_btn.disabled = self.page == len(self.pages) - 1
 
     def _make_embed(self) -> discord.Embed:
         m = self.pages[self.page]
-        embed = discord.Embed(
-            title=self.word,
-            color=discord.Color.blurple(),
-        )
+        embed = discord.Embed(title=self.word, color=discord.Color.blurple())
         embed.add_field(name="Part of Speech",
                         value=f"`{m['pos']}`",
                         inline=True)
@@ -166,7 +165,7 @@ class MoreView(discord.ui.View):
         )
         return embed
 
-    async def _edit(self, interaction: discord.Interaction):
+    async def _edit(self, interaction: discord.Interaction) -> None:
         self._sync()
         await interaction.response.edit_message(embed=self._make_embed(),
                                                 view=self)
@@ -179,9 +178,12 @@ class MoreView(discord.ui.View):
             return False
         return True
 
-    async def on_timeout(self):
+    async def on_timeout(self) -> None:
+        # discord.ui.View.children is List[Item[Self]] — Item does not expose
+        # .disabled directly. We cast to Button which does.
         for item in self.children:
-            item.disabled = True
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
         try:
             await self.message.edit(view=self)
         except Exception:
@@ -189,18 +191,20 @@ class MoreView(discord.ui.View):
 
     @discord.ui.button(label="←", style=discord.ButtonStyle.secondary)
     async def prev_btn(self, interaction: discord.Interaction,
-                       button: discord.ui.Button):
+                       button: discord.ui.Button) -> None:
         self.page -= 1
         await self._edit(interaction)
 
     @discord.ui.button(label="✕", style=discord.ButtonStyle.danger)
     async def close_btn(self, interaction: discord.Interaction,
-                        button: discord.ui.Button):
-        await interaction.message.delete()
+                        button: discord.ui.Button) -> None:
+        # interaction.message is Message | None — guard before calling .delete().
+        if interaction.message is not None:
+            await interaction.message.delete()
 
     @discord.ui.button(label="→", style=discord.ButtonStyle.secondary)
     async def next_btn(self, interaction: discord.Interaction,
-                       button: discord.ui.Button):
+                       button: discord.ui.Button) -> None:
         self.page += 1
         await self._edit(interaction)
 
@@ -211,7 +215,10 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         self.bot = bot
 
     @commands.command(name="lookup", aliases=["ll"])
-    async def lookup(self, ctx: commands.Context, word: str = None, *flags):
+    async def lookup(self,
+                     ctx: commands.Context,
+                     word: str | None = None,
+                     *flags: str) -> None:
         """
         Look up a word.
         cc ll <word>            — first definition
@@ -222,12 +229,11 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         cc ll <word> -more      — full paginated breakdown
         """
         if not word:
-            return await ctx.send(
-                "Usage: `cc ll <word> [flags]`\n"
-                "Flags: `-pos` `-sentence` `-origin` `-syn` `-more`")
+            await ctx.send("Usage: `cc ll <word> [flags]`\n"
+                           "Flags: `-pos` `-sentence` `-origin` `-syn` `-more`"
+                           )
+            return
 
-        # Separate word tokens from flags (anything starting with -)
-        # Support: cc ll hello world -pos (multi-word lookup)
         all_args = [word] + list(flags)
         flag_set = {a.lower() for a in all_args if a.startswith("-")}
         word_parts = [a for a in all_args if not a.startswith("-")]
@@ -235,46 +241,43 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
 
         invalid = flag_set - VALID_FLAGS
         if invalid:
-            return await ctx.send(
+            await ctx.send(
                 f"✕ Unknown flag(s): {' '.join(invalid)}\n"
                 f"Valid flags: `-pos` `-sentence` `-origin` `-syn` `-more`")
+            return
 
         async with ctx.typing():
             data = await _fetch(word)
 
         if data is None:
-            return await ctx.send(f"✕ No results found for **{word}**.")
+            await ctx.send(f"✕ No results found for **{word}**.")
+            return
 
-        phonetic = _get_phonetic(data)
         pos, definition, example = _get_first_meaning(data)
 
-        # ── -more: full paginated embed ────────────────────────────────────
         if "-more" in flag_set:
             meanings = _get_all_meanings(data)
             if not meanings:
-                return await ctx.send(f"✕ No meanings found for **{word}**.")
+                await ctx.send(f"✕ No meanings found for **{word}**.")
+                return
             view = MoreView(ctx.author, word, meanings)
             msg = await ctx.send(embed=view._make_embed(), view=view)
             view.message = msg
             return
 
-        # ── Plain text responses for all other modes ───────────────────────
         if not flag_set:
             await ctx.send(definition)
             return
 
-        lines = []
+        lines: list[str] = []
 
         if "-pos" in flag_set:
             lines.append(f"**Part of speech:** {pos}")
-
         if "-sentence" in flag_set:
             lines.append(example if example else "No example available.")
-
         if "-origin" in flag_set:
             origin = _get_origin(data)
             lines.append(origin if origin else "No origin data available.")
-
         if "-syn" in flag_set:
             syns, ants = _get_synonyms(data)
             lines.append(
@@ -285,25 +288,24 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         await ctx.send("\n".join(lines))
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
+    async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
+
+        # self.bot.user is ClientUser | None until on_ready fires — assert it.
+        assert self.bot.user is not None
         if self.bot.user not in message.mentions:
             return
 
-        # Strip the mention
         content = message.content.strip()
         for mention_fmt in (f"<@{self.bot.user.id}>",
                             f"<@!{self.bot.user.id}>"):
             content = content.replace(mention_fmt, "").strip()
 
-        # Ignore if it's a regular command
         if content.startswith("cc "):
             return
 
         parts = content.split()
-
-        # Detect positional flag (-1, -2, -3 ...) and normal flags
         position, parts = _parse_position_flag(parts)
         flag_set = {
             p.lower()
@@ -312,11 +314,13 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         word_parts = [p for p in parts if not p.startswith("-")]
         word = " ".join(word_parts).strip()
 
-        # ── Reply + positional flag: @corebot -3 ──────────────────────────
         if position is not None and message.reference:
+            # message.reference.message_id is int | None — guard before fetch.
+            ref_id = message.reference.message_id
+            if ref_id is None:
+                return
             try:
-                ref_msg = await message.channel.fetch_message(
-                    message.reference.message_id)
+                ref_msg = await message.channel.fetch_message(ref_id)
                 sentence_words = _clean_sentence_words(ref_msg.content)
                 if not sentence_words:
                     await message.channel.send(
@@ -332,17 +336,17 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
                 await message.channel.send("✕ Could not fetch that message.")
                 return
 
-        # ── Reply without position: @corebot (just a reply) ──────────────
         elif not word and message.reference:
+            ref_id = message.reference.message_id
+            if ref_id is None:
+                return
             try:
-                ref_msg = await message.channel.fetch_message(
-                    message.reference.message_id)
+                ref_msg = await message.channel.fetch_message(ref_id)
                 sentence_words = _clean_sentence_words(ref_msg.content)
                 if not sentence_words:
                     await message.channel.send(
                         "✕ No readable words found in that message.")
                     return
-                # Default: first two words as a potential term
                 word = " ".join(sentence_words[:2])
             except (discord.NotFound, discord.Forbidden):
                 await message.channel.send("✕ Could not fetch that message.")
@@ -354,7 +358,6 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         async with message.channel.typing():
             data = await _fetch(word)
 
-        # If two-word term fails, fall back to first word
         if data is None and " " in word:
             word = word.split()[0]
             data = await _fetch(word)
@@ -381,7 +384,7 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
             await message.channel.send(definition)
             return
 
-        lines = []
+        lines: list[str] = []
         if "-pos" in flag_set:
             lines.append(f"**Part of speech:** {pos}")
         if "-sentence" in flag_set:
@@ -399,20 +402,29 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         await message.channel.send("\n".join(lines))
 
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self,
-                                  payload: discord.RawReactionActionEvent):
-        # Only trigger on the lookup emoji or bot mention emoji
+    async def on_raw_reaction_add(
+            self, payload: discord.RawReactionActionEvent) -> None:
         emoji = str(payload.emoji)
         if emoji not in ("🔍", "📖"):
             return
+
+        assert self.bot.user is not None
         if payload.user_id == self.bot.user.id:
             return
 
         guild = self.bot.get_guild(
             payload.guild_id) if payload.guild_id else None
-        channel = self.bot.get_channel(payload.channel_id)
-        if not channel:
+
+        # get_channel() returns a broad union that includes PrivateChannel,
+        # CategoryChannel, and ForumChannel — none of which support .send(),
+        # .typing(), or .fetch_message(). We narrow to Messageable first, then
+        # further to a concrete channel type that exposes fetch_message().
+        raw_channel = self.bot.get_channel(payload.channel_id)
+        if not isinstance(
+                raw_channel,
+            (discord.TextChannel, discord.Thread, discord.DMChannel)):
             return
+        channel = raw_channel
 
         try:
             message = await channel.fetch_message(payload.message_id)
@@ -422,22 +434,16 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         if not message.content:
             return
 
-        # Strip mentions, punctuation, and take first two words
-        import re
         text = message.content
-        text = re.sub(r"<@?!?[0-9]+>", "", text)  # remove mentions
-        text = re.sub(r"[^\w\s\-]", " ",
-                      text)  # remove punctuation except hyphens
+        text = re.sub(r"<@?!?[0-9]+>", "", text)
+        text = re.sub(r"[^\w\s\-]", " ", text)
         words = text.split()
 
-        # Separate flags from words
         flag_set = {
             w.lower()
             for w in words if w.startswith("-") and w.lower() in VALID_FLAGS
         }
         word_parts = [w for w in words if not w.startswith("-")]
-
-        # Take first two words as the search term
         term = " ".join(word_parts[:2]).strip()
         if not term:
             return
@@ -450,7 +456,6 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
             data = await _fetch(term)
 
         if data is None:
-            # Try just the first word if two-word lookup failed
             term = word_parts[0] if word_parts else ""
             if not term:
                 return
@@ -501,5 +506,5 @@ class SearchLabs(commands.Cog, name="SearchLabs"):
         await channel.send("\n".join(lines))
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(SearchLabs(bot))

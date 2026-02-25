@@ -2,13 +2,13 @@
 converters.py — Universal resolvers for member, role, and channel.
 Each function accepts: @mention, ID (int or str), or display name.
 """
-
 import re
 import discord
 from discord.ext import commands
 
 
-async def resolve_member(ctx: commands.Context, value: str) -> discord.Member | None:
+async def resolve_member(ctx: commands.Context,
+                         value: str) -> discord.Member | None:
     """Resolve a member from a mention, user ID, username, or display name."""
     guild = ctx.guild
     if not guild:
@@ -32,12 +32,14 @@ async def resolve_member(ctx: commands.Context, value: str) -> discord.Member | 
     # Try name (case-insensitive display name or username)
     value_lower = value.lower()
     return discord.utils.find(
-        lambda m: m.display_name.lower() == value_lower or m.name.lower() == value_lower,
-        guild.members
+        lambda m: m.display_name.lower() == value_lower or m.name.lower() ==
+        value_lower,
+        guild.members,
     )
 
 
-async def resolve_role(ctx: commands.Context, value: str) -> discord.Role | None:
+async def resolve_role(ctx: commands.Context,
+                       value: str) -> discord.Role | None:
     """Resolve a role from a mention, role ID, or role name."""
     guild = ctx.guild
     if not guild:
@@ -53,10 +55,12 @@ async def resolve_role(ctx: commands.Context, value: str) -> discord.Role | None
             return role
 
     value_lower = value.lower()
-    return discord.utils.find(lambda r: r.name.lower() == value_lower, guild.roles)
+    return discord.utils.find(lambda r: r.name.lower() == value_lower,
+                              guild.roles)
 
 
-async def resolve_channel(ctx: commands.Context, value: str) -> discord.TextChannel | None:
+async def resolve_channel(ctx: commands.Context,
+                          value: str) -> discord.TextChannel | None:
     """Resolve a text channel from a mention, channel ID, or channel name."""
     guild = ctx.guild
     if not guild:
@@ -67,38 +71,46 @@ async def resolve_channel(ctx: commands.Context, value: str) -> discord.TextChan
         value = mention_match.group(1)
 
     if value.isdigit():
+
         channel = guild.get_channel(int(value))
         if isinstance(channel, discord.TextChannel):
             return channel
 
     value_lower = value.lower().lstrip("#")
-    return discord.utils.find(
-        lambda c: isinstance(c, discord.TextChannel) and c.name.lower() == value_lower,
-        guild.channels
+
+    result = discord.utils.find(
+        lambda c: isinstance(c, discord.TextChannel) and c.name.lower() ==
+        value_lower,
+        guild.channels,
     )
+    return result if isinstance(result, discord.TextChannel) else None
 
-
-# discord.py Converter classes (for use in command signatures)
 
 class MemberConverter(commands.Converter):
-    async def convert(self, ctx: commands.Context, value: str) -> discord.Member:
-        member = await resolve_member(ctx, value)
+
+    async def convert(self, ctx: commands.Context,
+                      argument: str) -> discord.Member:
+        member = await resolve_member(ctx, argument)
         if member is None:
-            raise commands.BadArgument(f"Member `{value}` not found.")
+            raise commands.BadArgument(f"Member `{argument}` not found.")
         return member
 
 
 class RoleConverter(commands.Converter):
-    async def convert(self, ctx: commands.Context, value: str) -> discord.Role:
-        role = await resolve_role(ctx, value)
+
+    async def convert(self, ctx: commands.Context,
+                      argument: str) -> discord.Role:
+        role = await resolve_role(ctx, argument)
         if role is None:
-            raise commands.BadArgument(f"Role `{value}` not found.")
+            raise commands.BadArgument(f"Role `{argument}` not found.")
         return role
 
 
 class ChannelConverter(commands.Converter):
-    async def convert(self, ctx: commands.Context, value: str) -> discord.TextChannel:
-        channel = await resolve_channel(ctx, value)
+
+    async def convert(self, ctx: commands.Context,
+                      argument: str) -> discord.TextChannel:
+        channel = await resolve_channel(ctx, argument)
         if channel is None:
-            raise commands.BadArgument(f"Channel `{value}` not found.")
+            raise commands.BadArgument(f"Channel `{argument}` not found.")
         return channel

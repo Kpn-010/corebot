@@ -10,10 +10,11 @@ from discord.ext import commands
 
 log = logging.getLogger("corebot")
 
-def _sb_headers(extra: dict = None) -> dict:
+
+def _sb_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     """Build Supabase headers fresh each call so env vars are always current."""
     key = os.environ.get("SUPABASE_KEY", "")
-    h = {
+    h: dict[str, str] = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
@@ -30,8 +31,8 @@ def _sb_url(path: str) -> str:
 
 
 STATUS_TYPES = {
-    "watching":  discord.ActivityType.watching,
-    "playing":   discord.ActivityType.playing,
+    "watching": discord.ActivityType.watching,
+    "playing": discord.ActivityType.playing,
     "listening": discord.ActivityType.listening,
     "competing": discord.ActivityType.competing,
 }
@@ -47,7 +48,6 @@ def _load_env_owner_ids() -> set[int]:
     return ids
 
 
-# Env-based owners loaded at startup — Supabase owners loaded async in setup()
 OWNER_IDS: set[int] = _load_env_owner_ids()
 
 
@@ -70,8 +70,12 @@ async def _add_owner_db(user_id: int, added_by: int) -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(
             _sb_url("owner_ids"),
-            json={"user_id": user_id, "added_by": added_by},
-            headers=_sb_headers({"Prefer": "resolution=ignore-duplicates,return=minimal"}),
+            json={
+                "user_id": user_id,
+                "added_by": added_by
+            },
+            headers=_sb_headers(
+                {"Prefer": "resolution=ignore-duplicates,return=minimal"}),
         )
         r.raise_for_status()
 
@@ -87,11 +91,13 @@ async def _remove_owner_db(user_id: int) -> None:
 
 
 def is_owner():
+
     async def predicate(ctx: commands.Context) -> bool:
         if ctx.author.id in OWNER_IDS or await ctx.bot.is_owner(ctx.author):
             return True
         await ctx.send("✕ Owner only.")
         return False
+
     return commands.check(predicate)
 
 
@@ -119,7 +125,8 @@ OWNER_PAGES = [
     },
     {
         "title": "Unload",
-        "description": "Unload an extension. The owner cog cannot be unloaded.",
+        "description":
+        "Unload an extension. The owner cog cannot be unloaded.",
         "syntax": "cc unload <cogs.name>",
         "example": "cc unload cogs.mod",
         "aliases": "None",
@@ -133,7 +140,8 @@ OWNER_PAGES = [
     },
     {
         "title": "Status",
-        "description": "Change the bot's activity text.\nTypes: `watching` `playing` `listening` `competing`",
+        "description":
+        "Change the bot's activity text.\nTypes: `watching` `playing` `listening` `competing`",
         "syntax": "cc status <type> <text>",
         "example": "cc status watching the servers",
         "aliases": "None",
@@ -147,28 +155,32 @@ OWNER_PAGES = [
     },
     {
         "title": "Restart",
-        "description": "Cleanly close the bot. Render restarts the process automatically.",
+        "description":
+        "Cleanly close the bot. Render restarts the process automatically.",
         "syntax": "cc restart",
         "example": "cc restart",
         "aliases": "None",
     },
     {
         "title": "Shutdown",
-        "description": "Close the bot. Same as restart on Render unless you stop the service.",
+        "description":
+        "Close the bot. Same as restart on Render unless you stop the service.",
         "syntax": "cc shutdown",
         "example": "cc shutdown",
         "aliases": "None",
     },
     {
         "title": "Add Owner",
-        "description": "Grant a user owner access. Persisted to file — survives restarts.",
+        "description":
+        "Grant a user owner access. Persisted to file — survives restarts.",
         "syntax": "cc addowner <@user|ID>",
         "example": "cc addowner @friend",
         "aliases": "None",
     },
     {
         "title": "Remove Owner",
-        "description": "Revoke a user's owner access. Cannot remove the last owner.",
+        "description":
+        "Revoke a user's owner access. Cannot remove the last owner.",
         "syntax": "cc removeowner <@user|ID>",
         "example": "cc removeowner @friend",
         "aliases": "None",
@@ -182,7 +194,8 @@ OWNER_PAGES = [
     },
     {
         "title": "Bot Stats",
-        "description": "Show internal stats: guilds, users, latency, extensions, versions.",
+        "description":
+        "Show internal stats: guilds, users, latency, extensions, versions.",
         "syntax": "cc botstats",
         "example": "cc botstats",
         "aliases": "None",
@@ -198,14 +211,12 @@ def _make_owner_embed(
     cmd = OWNER_PAGES[page]
     embed = discord.Embed(
         title=f"Group: Owner ‣ Module {page + 1}",
-        description=(
-            f"> {cmd['description']}\n"
-            f"```\n"
-            f"Syntax:  {cmd['syntax']}\n"
-            f"Example: {cmd['example']}\n"
-            f"```\n"
-            f"**Permissions:**\nOwner only"
-        ),
+        description=(f"> {cmd['description']}\n"
+                     f"```\n"
+                     f"Syntax:  {cmd['syntax']}\n"
+                     f"Example: {cmd['example']}\n"
+                     f"```\n"
+                     f"**Permissions:**\nOwner only"),
         color=discord.Color.blurple(),
     )
     embed.set_author(
@@ -213,69 +224,82 @@ def _make_owner_embed(
         icon_url=bot.user.display_avatar.url if bot.user else None,
     )
     embed.set_footer(
-        text=f"Aliases: {cmd['aliases']}  ⌁  Page {page + 1} of {len(OWNER_PAGES)}",
+        text=
+        f"Aliases: {cmd['aliases']}  ⌁  Page {page + 1} of {len(OWNER_PAGES)}",
         icon_url=invoker.display_avatar.url,
     )
     return embed
 
 
 class OwnerHelpView(discord.ui.View):
+    # Declared at class level so pyright knows the attribute exists.
+    # Assigned after the message is sent.
+    message: discord.Message
+
     def __init__(
         self,
         bot: commands.Bot,
         invoker: discord.User | discord.Member,
         page: int = 0,
-    ):
+    ) -> None:
         super().__init__(timeout=120)
         self.bot = bot
         self.invoker = invoker
         self.page = page
         self._sync()
 
-    def _sync(self):
+    def _sync(self) -> None:
         self.prev_btn.disabled = self.page == 0
         self.next_btn.disabled = self.page == len(OWNER_PAGES) - 1
 
-    async def _edit(self, interaction: discord.Interaction):
+    async def _edit(self, interaction: discord.Interaction) -> None:
         self._sync()
         await interaction.response.edit_message(
             embed=_make_owner_embed(self.bot, self.page, self.invoker),
             view=self,
         )
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    async def interaction_check(self,
+                                interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.invoker.id:
             await interaction.response.send_message(
-                "✕ This menu belongs to someone else.", ephemeral=True
-            )
+                "✕ This menu belongs to someone else.", ephemeral=True)
             return False
         return True
 
-    async def on_timeout(self):
+    async def on_timeout(self) -> None:
+        # Item[Self] does not expose .disabled — narrow to Button first.
         for item in self.children:
-            item.disabled = True
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
         try:
             await self.message.edit(view=self)
         except Exception:
             pass
 
     @discord.ui.button(label="←", style=discord.ButtonStyle.secondary)
-    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def prev_btn(self, interaction: discord.Interaction,
+                       button: discord.ui.Button) -> None:
         self.page -= 1
         await self._edit(interaction)
 
     @discord.ui.button(label="✕", style=discord.ButtonStyle.danger)
-    async def close_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.message.delete()
+    async def close_btn(self, interaction: discord.Interaction,
+                        button: discord.ui.Button) -> None:
+        # interaction.message is Message | None — guard before calling .delete().
+        if interaction.message is not None:
+            await interaction.message.delete()
 
     @discord.ui.button(label="→", style=discord.ButtonStyle.secondary)
-    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def next_btn(self, interaction: discord.Interaction,
+                       button: discord.ui.Button) -> None:
         self.page += 1
         await self._edit(interaction)
 
 
 class Owner(commands.Cog, name="Owner"):
-    def __init__(self, bot: commands.Bot):
+
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     async def cog_load(self) -> None:
@@ -285,7 +309,10 @@ class Owner(commands.Cog, name="Owner"):
 
     @commands.command(name="reload")
     @is_owner()
-    async def reload(self, ctx: commands.Context, *, ext: str = None):
+    async def reload(self,
+                     ctx: commands.Context,
+                     *,
+                     ext: str | None = None) -> None:
         if ext:
             ext = _resolve_ext(ext)
             try:
@@ -312,7 +339,7 @@ class Owner(commands.Cog, name="Owner"):
 
     @commands.command(name="load")
     @is_owner()
-    async def load(self, ctx: commands.Context, *, ext: str):
+    async def load(self, ctx: commands.Context, *, ext: str) -> None:
         ext = _resolve_ext(ext)
         try:
             await self.bot.load_extension(ext)
@@ -328,10 +355,11 @@ class Owner(commands.Cog, name="Owner"):
 
     @commands.command(name="unload")
     @is_owner()
-    async def unload(self, ctx: commands.Context, *, ext: str):
+    async def unload(self, ctx: commands.Context, *, ext: str) -> None:
         ext = _resolve_ext(ext)
         if ext == "cogs.owner":
-            return await ctx.send("✕ Cannot unload the owner cog.")
+            await ctx.send("✕ Cannot unload the owner cog.")
+            return
         try:
             await self.bot.unload_extension(ext)
             await ctx.send(f"✓ Unloaded `{ext}`")
@@ -343,95 +371,103 @@ class Owner(commands.Cog, name="Owner"):
 
     @commands.command(name="extensions", aliases=["exts"])
     @is_owner()
-    async def extensions(self, ctx: commands.Context):
+    async def extensions(self, ctx: commands.Context) -> None:
         exts = "\n".join(f"✓ `{e}`" for e in sorted(self.bot.extensions))
         await ctx.send(f"**Loaded extensions:**\n{exts}")
 
     @commands.command(name="status")
     @is_owner()
-    async def status(self, ctx: commands.Context, kind: str, *, text: str):
+    async def status(self, ctx: commands.Context, kind: str, *,
+                     text: str) -> None:
         kind = kind.lower()
         if kind not in STATUS_TYPES:
             types = ", ".join(STATUS_TYPES)
-            return await ctx.send(f"✕ Unknown type. Use: {types}")
+            await ctx.send(f"✕ Unknown type. Use: {types}")
+            return
         await self.bot.change_presence(
-            activity=discord.Activity(type=STATUS_TYPES[kind], name=text)
-        )
+            activity=discord.Activity(type=STATUS_TYPES[kind], name=text))
         await ctx.send(f"✓ Status set to **{kind}** `{text}`")
 
     @commands.command(name="setonline")
     @is_owner()
-    async def setonline(self, ctx: commands.Context):
+    async def setonline(self, ctx: commands.Context) -> None:
         await self.bot.change_presence(status=discord.Status.online)
         await ctx.send("✓ Status set to Online.")
 
     @commands.command(name="setidle")
     @is_owner()
-    async def setidle(self, ctx: commands.Context):
+    async def setidle(self, ctx: commands.Context) -> None:
         await self.bot.change_presence(status=discord.Status.idle)
         await ctx.send("✓ Status set to Idle.")
 
     @commands.command(name="setdnd")
     @is_owner()
-    async def setdnd(self, ctx: commands.Context):
+    async def setdnd(self, ctx: commands.Context) -> None:
         await self.bot.change_presence(status=discord.Status.do_not_disturb)
         await ctx.send("✓ Status set to DND.")
 
     @commands.command(name="setinvisible")
     @is_owner()
-    async def setinvisible(self, ctx: commands.Context):
+    async def setinvisible(self, ctx: commands.Context) -> None:
         await self.bot.change_presence(status=discord.Status.invisible)
         await ctx.send("✓ Status set to Invisible.")
 
     @commands.command(name="restart")
     @is_owner()
-    async def restart(self, ctx: commands.Context):
+    async def restart(self, ctx: commands.Context) -> None:
         await ctx.send("↻ Restarting...")
         log.info(f"Restart triggered by {ctx.author} (ID: {ctx.author.id})")
-        asyncio.get_event_loop().call_soon(asyncio.ensure_future, self.bot.close())
+        asyncio.get_event_loop().call_soon(asyncio.ensure_future,
+                                           self.bot.close())
 
     @commands.command(name="shutdown")
     @is_owner()
-    async def shutdown(self, ctx: commands.Context):
+    async def shutdown(self, ctx: commands.Context) -> None:
         await ctx.send("✓ Shutting down.")
         log.info(f"Shutdown triggered by {ctx.author} (ID: {ctx.author.id})")
-        asyncio.get_event_loop().call_soon(asyncio.ensure_future, self.bot.close())
+        asyncio.get_event_loop().call_soon(asyncio.ensure_future,
+                                           self.bot.close())
 
     @commands.command(name="addowner")
     @is_owner()
-    async def addowner(self, ctx: commands.Context, user: discord.User):
-        # Re-sync from DB first so we have the latest state across both bots
+    async def addowner(self, ctx: commands.Context,
+                       user: discord.User) -> None:
         OWNER_IDS.update(await _fetch_owner_ids())
         if user.id in OWNER_IDS:
-            return await ctx.send(f"✕ {user.mention} is already an owner.")
+            await ctx.send(f"✕ {user.mention} is already an owner.")
+            return
         try:
             await _add_owner_db(user.id, ctx.author.id)
         except Exception as e:
-            return await ctx.send(f"✕ Failed to save to database: `{e}`")
+            await ctx.send(f"✕ Failed to save to database: `{e}`")
+            return
         OWNER_IDS.add(user.id)
         await ctx.send(f"✓ {user.mention} added as an owner.")
         log.info(f"Owner added: {user} (ID: {user.id}) by {ctx.author}")
 
     @commands.command(name="removeowner")
     @is_owner()
-    async def removeowner(self, ctx: commands.Context, user: discord.User):
+    async def removeowner(self, ctx: commands.Context,
+                          user: discord.User) -> None:
         OWNER_IDS.update(await _fetch_owner_ids())
         if user.id not in OWNER_IDS:
-            return await ctx.send(f"✕ {user.mention} is not an owner.")
+            await ctx.send(f"✕ {user.mention} is not an owner.")
+            return
         if len(OWNER_IDS) == 1:
-            return await ctx.send("✕ Cannot remove the last owner.")
+            await ctx.send("✕ Cannot remove the last owner.")
+            return
         try:
             await _remove_owner_db(user.id)
         except Exception as e:
-            return await ctx.send(f"✕ Failed to remove from database: `{e}`")
+            await ctx.send(f"✕ Failed to remove from database: `{e}`")
+            return
         OWNER_IDS.discard(user.id)
         await ctx.send(f"✓ {user.mention} removed from owners.")
         log.info(f"Owner removed: {user} (ID: {user.id}) by {ctx.author}")
 
     @commands.command(name="owners")
     @is_owner()
-    async def owners(self, ctx: commands.Context):
-        # Always fetch fresh from DB so both bots see the same list
+    async def owners(self, ctx: commands.Context) -> None:
         db_ids = await _fetch_owner_ids()
         OWNER_IDS.update(db_ids)
         all_ids = OWNER_IDS | db_ids
@@ -444,12 +480,14 @@ class Owner(commands.Cog, name="Owner"):
 
     @commands.command(name="botstats")
     @is_owner()
-    async def botstats(self, ctx: commands.Context):
+    async def botstats(self, ctx: commands.Context) -> None:
         total_members = sum(g.member_count or 0 for g in self.bot.guilds)
-        embed = discord.Embed(title="CoreBot Stats", color=discord.Color.blurple())
+        embed = discord.Embed(title="CoreBot Stats",
+                              color=discord.Color.blurple())
         embed.add_field(name="Guilds", value=str(len(self.bot.guilds)))
         embed.add_field(name="Users", value=f"{total_members:,}")
-        embed.add_field(name="Latency", value=f"{round(self.bot.latency * 1000)}ms")
+        embed.add_field(name="Latency",
+                        value=f"{round(self.bot.latency * 1000)}ms")
         embed.add_field(name="Extensions", value=str(len(self.bot.extensions)))
         embed.add_field(name="Python", value=sys.version.split()[0])
         embed.add_field(name="discord.py", value=discord.__version__)
@@ -457,11 +495,12 @@ class Owner(commands.Cog, name="Owner"):
 
     @commands.command(name="ownerhelp", aliases=["oh"])
     @is_owner()
-    async def ownerhelp(self, ctx: commands.Context):
+    async def ownerhelp(self, ctx: commands.Context) -> None:
         view = OwnerHelpView(self.bot, ctx.author, 0)
-        msg = await ctx.send(embed=_make_owner_embed(self.bot, 0, ctx.author), view=view)
+        msg = await ctx.send(embed=_make_owner_embed(self.bot, 0, ctx.author),
+                             view=view)
         view.message = msg
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Owner(bot))
